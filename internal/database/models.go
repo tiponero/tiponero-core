@@ -11,6 +11,7 @@ type User struct {
 	AvatarURL    string
 	TOTPSecret   string
 	CreatedAt    int64
+	UpdatedAt    int64
 }
 
 type TransactionStatus string
@@ -95,6 +96,7 @@ type Widget struct {
 	ShowStats       bool
 	RedirectURL     string
 	CreatedAt       int64
+	UpdatedAt       int64
 }
 
 type WidgetStats struct {

@@ -40,8 +40,6 @@ func Load() Config {
 	if v := os.Getenv("CONFIRMATIONS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			confirmations = n
-		} else {
-			log.Warn().Str("CONFIRMATIONS", v).Msg("invalid value, using default (10)")
 		}
 	}
 
@@ -49,8 +47,6 @@ func Load() Config {
 	if v := os.Getenv("TRANSACTION_EXPIRY"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil && d > 0 {
 			transactionExpiry = d
-		} else {
-			log.Warn().Str("TRANSACTION_EXPIRY", v).Msg("invalid duration, using default (1h)")
 		}
 	}
 

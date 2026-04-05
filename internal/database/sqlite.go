@@ -45,7 +45,8 @@ func (db *DB) initSchema() error {
 		bio TEXT,
 		avatar_url TEXT,
 		totp_secret TEXT,
-		created_at INTEGER NOT NULL
+		created_at INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL
 	);
 
 	CREATE TABLE IF NOT EXISTS widget (
@@ -61,7 +62,8 @@ func (db *DB) initSchema() error {
 		thank_you_message TEXT DEFAULT 'Thank you for your donation!',
 		primary_color TEXT DEFAULT '#ff6600',
 		redirect_url TEXT,
-		created_at INTEGER NOT NULL
+		created_at INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL
 	);
 
 	CREATE TABLE IF NOT EXISTS "transaction" (

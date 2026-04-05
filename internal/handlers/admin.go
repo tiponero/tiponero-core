@@ -491,6 +491,7 @@ func (h *AdminHandler) CreateWidget(w http.ResponseWriter, r *http.Request) {
 		ThankYouMessage: "Thank you for your donation!",
 		CreatedAt:       time.Now().Unix(),
 	}
+	widget.UpdatedAt = widget.CreatedAt
 
 	if widget.ButtonText == "" {
 		if mode == database.ModePayment {

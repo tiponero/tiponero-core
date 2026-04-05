@@ -57,6 +57,7 @@ type widgetJSON struct {
 	ShowStats       bool      `json:"show_stats"`
 	RedirectURL     string    `json:"redirect_url"`
 	CreatedAt       int64     `json:"created_at"`
+	UpdatedAt       int64     `json:"updated_at"`
 }
 
 func toWidgetJSON(w *database.Widget) widgetJSON {
@@ -80,6 +81,7 @@ func toWidgetJSON(w *database.Widget) widgetJSON {
 		ShowStats:       w.ShowStats,
 		RedirectURL:     w.RedirectURL,
 		CreatedAt:       w.CreatedAt,
+		UpdatedAt:       w.UpdatedAt,
 	}
 }
 
@@ -134,6 +136,7 @@ type userJSON struct {
 	AvatarURL   string `json:"avatar_url"`
 	Has2FA      bool   `json:"has_2fa"`
 	CreatedAt   int64  `json:"created_at"`
+	UpdatedAt   int64  `json:"updated_at"`
 }
 
 func toUserJSON(u *database.User) userJSON {
@@ -145,6 +148,7 @@ func toUserJSON(u *database.User) userJSON {
 		AvatarURL:   u.AvatarURL,
 		Has2FA:      u.TOTPSecret != "",
 		CreatedAt:   u.CreatedAt,
+		UpdatedAt:   u.UpdatedAt,
 	}
 }
 
@@ -314,6 +318,7 @@ func (h *APIHandler) CreateWidget(w http.ResponseWriter, r *http.Request) {
 	}
 
 	widget.CreatedAt = time.Now().Unix()
+	widget.UpdatedAt = widget.CreatedAt
 
 	if err := h.db.CreateWidget(widget); err != nil {
 		h.log.Error().Err(err).Msg("api: failed to create widget")

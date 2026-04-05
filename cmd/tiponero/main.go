@@ -117,11 +117,13 @@ func seedUser(db *database.DB) error {
 		return fmt.Errorf("hash password: %w", err)
 	}
 
+	now := time.Now().Unix()
 	user := &database.User{
 		Username:     defaultAdminUsername,
 		PasswordHash: hash,
 		DisplayName:  defaultAdminUsername,
-		CreatedAt:    time.Now().Unix(),
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}
 
 	if err := db.CreateUser(user); err != nil {
