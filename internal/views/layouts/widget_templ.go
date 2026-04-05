@@ -130,7 +130,7 @@ func WidgetPage(title string, theme database.WidgetTheme, primaryColor string) t
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</head><body class=\"bg-white dark:bg-surface min-h-screen flex items-center justify-center p-4 transition-colors dark:text-on-surface\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</head><body class=\"bg-transparent dark:text-on-surface\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
