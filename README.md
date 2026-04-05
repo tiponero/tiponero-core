@@ -41,14 +41,17 @@ Edit `.env` with your desired port, database path, encryption key, and fiat curr
 
 ### 2. Build and run
 
-**With Docker**:
+**With Docker Compose** (recommended):
 
 ```bash
-docker build -t tiponero .
-docker run -p 8080:8080 --env-file .env -v ./data:/data tiponero
+docker compose up -d
 ```
 
-Use `DATABASE_PATH=/data/tiponero.db` in your `.env` to persist the database outside the container.
+The database is persisted in a named Docker volume. To rebuild after code changes:
+
+```bash
+docker compose up -d --build
+```
 
 **With Nix** (no other dependencies needed):
 

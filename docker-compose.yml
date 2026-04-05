@@ -1,0 +1,15 @@
+services:
+  tiponero:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      DATABASE_PATH: /data/tiponero.db
+    volumes:
+      - tiponero-data:/data
+
+volumes:
+  tiponero-data:

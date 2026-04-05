@@ -22,7 +22,19 @@ type Config struct {
 
 func Load() Config {
 	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
 	baseUrl := os.Getenv("BASE_URL")
+	if baseUrl == "" {
+		baseUrl = "http://localhost:" + port
+	}
+
+	fiatCurrency := os.Getenv("FIAT_CURRENCY")
+	if fiatCurrency == "" {
+		fiatCurrency = "USD"
+	}
 
 	confirmations := 10
 	if v := os.Getenv("CONFIRMATIONS"); v != "" {
@@ -48,7 +60,7 @@ func Load() Config {
 		SecureCookies:         strings.HasPrefix(baseUrl, "https://"),
 		DatabasePath:          os.Getenv("DATABASE_PATH"),
 		EncryptionKey:         os.Getenv("ENCRYPTION_KEY"),
-		FiatCurrency:          os.Getenv("FIAT_CURRENCY"),
+		FiatCurrency:          fiatCurrency,
 		RequiredConfirmations: confirmations,
 		TransactionExpiry:     transactionExpiry,
 	}
@@ -58,19 +70,10 @@ func Load() Config {
 }
 
 func (c *Config) validate() {
-	if c.Port == "" {
-		log.Warn().Msg("PORT is not set, server may fail to start")
-	}
-	if c.BaseURL == "" {
-		log.Warn().Msg("BASE_URL is not set, widget URLs and badges will be broken")
-	}
 	if c.EncryptionKey == "" {
 		log.Warn().Msg("ENCRYPTION_KEY is not set, sessions and wallet config will not be secure")
 	}
 	if c.DatabasePath == "" {
 		log.Warn().Msg("DATABASE_PATH is not set, using in-memory database (data will be lost on restart)")
-	}
-	if c.FiatCurrency == "" {
-		log.Warn().Msg("FIAT_CURRENCY is not set, fiat conversion will be disabled")
 	}
 }
