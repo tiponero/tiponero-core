@@ -95,6 +95,7 @@ func (db *DB) initSchema() error {
 
 	CREATE TABLE IF NOT EXISTS wallet (
 		id              TEXT PRIMARY KEY DEFAULT ` + uuidv4 + `,
+		user_id         TEXT NOT NULL REFERENCES user(id),
 		rpc_url         TEXT,
 		rpc_user        TEXT,
 		rpc_password    TEXT,

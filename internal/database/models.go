@@ -106,6 +106,7 @@ type WidgetStats struct {
 
 type WalletConfig struct {
 	ID             string
+	UserID         string
 	RPCURL         string
 	RPCUser        string
 	RPCPassword    string

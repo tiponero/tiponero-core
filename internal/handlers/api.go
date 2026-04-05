@@ -584,7 +584,8 @@ func (h *APIHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *APIHandler) CreateWallet(w http.ResponseWriter, r *http.Request) {
-	exists, err := h.db.WalletExists()
+	userID := auth.UserIDFromContext(r.Context())
+	exists, err := h.db.WalletExists(userID)
 	if err != nil {
 		h.log.Error().Err(err).Msg("api: failed to check wallet existence")
 		apiError(w, http.StatusInternalServerError, "failed to create wallet")
@@ -608,6 +609,7 @@ func (h *APIHandler) CreateWallet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cfg := &database.WalletConfig{
+		UserID:         userID,
 		RPCURL:         body.RPCURL,
 		RPCUser:        body.RPCUser,
 		RPCPassword:    body.RPCPassword,
@@ -625,7 +627,8 @@ func (h *APIHandler) CreateWallet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *APIHandler) GetWallet(w http.ResponseWriter, r *http.Request) {
-	cfg, err := h.db.GetWalletConfig(h.walletEncKey)
+	userID := auth.UserIDFromContext(r.Context())
+	cfg, err := h.db.GetWalletConfig(h.walletEncKey, userID)
 	if err != nil {
 		h.log.Error().Err(err).Msg("api: failed to get wallet config")
 		apiError(w, http.StatusInternalServerError, "failed to get wallet config")
@@ -645,7 +648,8 @@ func (h *APIHandler) GetWallet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *APIHandler) UpdateWallet(w http.ResponseWriter, r *http.Request) {
-	cfg, err := h.db.GetWalletConfig(h.walletEncKey)
+	userID := auth.UserIDFromContext(r.Context())
+	cfg, err := h.db.GetWalletConfig(h.walletEncKey, userID)
 	if err != nil {
 		h.log.Error().Err(err).Msg("api: failed to get wallet config")
 		apiError(w, http.StatusInternalServerError, "failed to get wallet config")

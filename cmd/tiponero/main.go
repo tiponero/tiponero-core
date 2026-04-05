@@ -55,7 +55,12 @@ func main() {
 		log.Fatal().Err(err).Msg("failed to seed admin user")
 	}
 
-	walletCfg, err := db.GetWalletConfig(walletEncKey)
+	user, err := db.GetUser()
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to load user")
+	}
+
+	walletCfg, err := db.GetWalletConfig(walletEncKey, user.ID)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to load wallet config")
 	}

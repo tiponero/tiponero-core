@@ -255,7 +255,7 @@ func (h *AdminHandler) SettingsPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	walletCfg, err := h.db.GetWalletConfig(h.walletEncKey)
+	walletCfg, err := h.db.GetWalletConfig(h.walletEncKey, userID)
 	if err != nil {
 		h.log.Error().Err(err).Msg("failed to load wallet config")
 		http.Error(w, "Failed to load wallet config", http.StatusInternalServerError)
@@ -335,7 +335,9 @@ func (h *AdminHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AdminHandler) UpdateWallet(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserIDFromContext(r.Context())
 	walletCfg := &database.WalletConfig{
+		UserID:         userID,
 		RPCURL:         r.FormValue("rpc_url"),
 		RPCUser:        r.FormValue("rpc_user"),
 		RPCPassword:    r.FormValue("rpc_password"),
@@ -372,7 +374,7 @@ func (h *AdminHandler) TOTPSetup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if user.TOTPSecret != "" {
-		walletCfg, _ := h.db.GetWalletConfig(h.walletEncKey)
+		walletCfg, _ := h.db.GetWalletConfig(h.walletEncKey, userID)
 		status := h.wallet.Status()
 		apiKeys, _ := h.db.ListAPIKeys(userID)
 		render(r.Context(), w, adminviews.Settings(user, walletCfg, status, apiKeys), h.log)
