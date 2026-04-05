@@ -1,0 +1,94 @@
+package components
+
+import (
+	"github.com/tiponero/tiponero-core/internal/database"
+	"time"
+)
+
+func formatTime(unix int64) string {
+	if unix == 0 {
+		return "-"
+	}
+	return time.Unix(unix, 0).Format("2006-01-02 15:04")
+}
+
+templ TransactionRow(t database.Transaction) {
+	<tr
+		class="hover:bg-surface-bright/20 transition-colors cursor-pointer"
+		onclick={ navigateToTransaction(t.ID) }
+	>
+		<td class="px-4 py-4 text-sm font-mono text-on-surface-variant">
+			{ t.ID[:8] }...
+		</td>
+		<td class="px-4 py-4">
+		if t.IsPayment {
+			<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono uppercase tracking-widest bg-primary-container/10 text-primary-container">
+				<span class="material-symbols-outlined text-xs">payment</span>
+				Payment
+			</span>
+		} else {
+				<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono uppercase tracking-widest bg-primary-container/10 text-primary-container">
+					<span class="material-symbols-outlined text-xs">volunteer_activism</span>
+					Donation
+				</span>
+			}
+		</td>
+		<td class="px-4 py-4 text-sm text-on-surface">
+			if t.Amount > 0 {
+				<span class="font-mono">{ FormatXMR(t.Amount) }</span>
+				if FormatFiat(t.FiatAmount, t.FiatCurrency) != "" {
+					<span class="text-on-surface-variant text-xs ml-1 font-mono">({ FormatFiat(t.FiatAmount, t.FiatCurrency) })</span>
+				}
+			} else {
+				<span class="text-on-surface-variant font-mono">Any amount</span>
+			}
+		</td>
+		<td class="px-4 py-4">
+			@StatusBadge(t.Status)
+		</td>
+		<td class="px-4 py-4 text-sm font-mono text-on-surface-variant">
+			{ formatTime(t.CreatedAt) }
+		</td>
+		<td class="px-4 py-4 text-sm text-on-surface-variant">
+			if t.DonorName != "" {
+				{ t.DonorName }
+			} else {
+				<span class="text-monero-gray">Anonymous</span>
+			}
+		</td>
+	</tr>
+}
+
+templ StatusBadge(status database.TransactionStatus) {
+	switch status {
+		case database.StatusPending:
+			<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono uppercase tracking-widest bg-primary-container/10 text-primary-container">
+				<span class="material-symbols-outlined text-xs">hourglass_empty</span>
+				Pending
+			</span>
+		case database.StatusMempool:
+			<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono uppercase tracking-widest bg-primary-container/10 text-primary-container">
+				<span class="material-symbols-outlined text-xs">radio_button_checked</span>
+				Mempool
+			</span>
+		case database.StatusConfirming:
+			<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono uppercase tracking-widest bg-primary-container/10 text-primary-container">
+				<span class="material-symbols-outlined text-xs">sync</span>
+				Confirming
+			</span>
+		case database.StatusConfirmed:
+			<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono uppercase tracking-widest bg-primary-container/10 text-primary-container">
+				<span class="material-symbols-outlined text-xs" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+				Confirmed
+			</span>
+		case database.StatusExpired:
+			<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono uppercase tracking-widest bg-monero-gray/30 text-on-surface-variant/60">
+				<span class="material-symbols-outlined text-xs">cancel</span>
+				Expired
+			</span>
+	}
+}
+
+script navigateToTransaction(id string) {
+	window.location.href = "/admin/transactions/" + id
+}

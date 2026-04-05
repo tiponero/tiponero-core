@@ -1,0 +1,64 @@
+package widget
+
+import (
+	"github.com/tiponero/tiponero-core/internal/database"
+	"github.com/tiponero/tiponero-core/internal/views/components"
+	"github.com/tiponero/tiponero-core/internal/views/layouts"
+	"fmt"
+)
+
+templ Payment(tx *database.Transaction, theme database.WidgetTheme, primaryColor string, redirectURL string) {
+	@layouts.WidgetPage("Awaiting Payment", theme, primaryColor) {
+		<div class="w-full max-w-sm mx-auto">
+			<div class="bg-gray-50 dark:bg-surface-container-low/80 dark:backdrop-blur rounded-xl p-8 dark:shadow-[inset_1px_1px_0_0_rgba(57,57,57,0.1)]">
+				<div class="text-center mb-6">
+					<span class="material-symbols-outlined text-brand-500 text-4xl mb-3">qr_code_scanner</span>
+					<h2 class="font-headline text-xl font-bold text-gray-900 dark:text-on-surface mb-2">Send Monero</h2>
+					if tx.Amount > 0 {
+						<div class="flex items-baseline justify-center gap-2">
+							<span class="text-2xl font-headline font-bold text-brand-500">{ components.FormatXMR(tx.Amount) }</span>
+						</div>
+					} else {
+						<p class="text-gray-500 dark:text-on-surface-variant font-body">Any amount</p>
+					}
+				</div>
+				<div class="flex justify-center mb-6">
+					<div class="bg-white p-3 rounded-lg">
+						<img
+							src={ fmt.Sprintf("/widget/qr/%s", tx.ID) }
+							alt="QR Code"
+							class="w-48 h-48"
+						/>
+					</div>
+				</div>
+				<div class="bg-gray-100 dark:bg-surface-container-lowest rounded-md p-4 mb-6">
+					<p class="text-xs font-mono uppercase tracking-widest text-gray-400 dark:text-on-surface-variant mb-2">Monero Subaddress</p>
+					<p class="text-xs font-mono text-gray-700 dark:text-on-surface-variant break-all select-all leading-relaxed">{ tx.Subaddress }</p>
+				</div>
+				if redirectURL != "" {
+					<div class="bg-yellow-50 dark:bg-surface-container-high rounded-md p-3 mb-4 flex items-center gap-2">
+						<span class="material-symbols-outlined text-yellow-600 dark:text-yellow-400 text-lg shrink-0">warning</span>
+						<p class="text-xs text-yellow-700 dark:text-yellow-300 font-body">Please don't close this window. You will be redirected automatically once the payment is confirmed.</p>
+					</div>
+				}
+			@Status(tx)
+			</div>
+		</div>
+		if redirectURL != "" {
+			<script>
+				// Warn user before closing during payment
+				window.__tiponeroBeforeUnload = function(e) {
+					e.preventDefault();
+					e.returnValue = '';
+				};
+				window.addEventListener('beforeunload', window.__tiponeroBeforeUnload);
+				// Remove warning when HTMX receives HX-Redirect (payment confirmed)
+				document.body.addEventListener('htmx:beforeOnLoad', function(evt) {
+					if (evt.detail.xhr && evt.detail.xhr.getResponseHeader('HX-Redirect')) {
+						window.removeEventListener('beforeunload', window.__tiponeroBeforeUnload);
+					}
+				});
+			</script>
+		}
+	}
+}

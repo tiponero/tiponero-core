@@ -1,0 +1,66 @@
+package widget
+
+import (
+	"github.com/tiponero/tiponero-core/internal/database"
+	"fmt"
+)
+
+templ Status(tx *database.Transaction) {
+	<div
+		id="status"
+		if tx.Status != database.StatusConfirmed && tx.Status != database.StatusExpired {
+			hx-get={ fmt.Sprintf("/widget/%s/donation/%s/status", tx.WidgetID.String, tx.ID) }
+			hx-trigger="every 3s"
+			hx-swap="outerHTML"
+		}
+	>
+		switch tx.Status {
+			case database.StatusPending:
+				<div class="flex items-center justify-center gap-3 text-brand-500 py-4">
+					<svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+					</svg>
+					<span class="text-sm font-mono font-medium">Waiting for payment...</span>
+				</div>
+			case database.StatusMempool:
+				<div class="text-center py-4">
+					<span class="material-symbols-outlined text-brand-500 text-2xl mb-2">radio_button_checked</span>
+					<p class="text-sm font-headline font-bold text-gray-900 dark:text-on-surface">Payment detected!</p>
+					<p class="text-xs font-mono text-gray-400 dark:text-on-surface-variant mt-1 uppercase tracking-widest">Waiting for confirmations...</p>
+				</div>
+			case database.StatusConfirming:
+				<div class="text-center py-4">
+					<p class="text-sm font-headline font-bold text-gray-900 dark:text-on-surface mb-3">Confirming...</p>
+					<div class="w-full bg-gray-200 dark:bg-surface-container-high rounded-md h-2 mb-2">
+						<div
+							class="bg-brand-500 h-2 rounded-md transition-all duration-500"
+							style={ fmt.Sprintf("width: %d%%", tx.Confirmations*10) }
+						></div>
+					</div>
+					<p class="text-xs font-mono text-gray-400 dark:text-on-surface-variant uppercase tracking-widest">{ fmt.Sprintf("%d/10 confirmations", tx.Confirmations) }</p>
+				</div>
+			case database.StatusConfirmed:
+				<div class="text-center py-4">
+					<span class="material-symbols-outlined text-brand-500 text-5xl mb-3" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+					if tx.IsPayment {
+						<p class="text-lg font-headline font-bold text-gray-900 dark:text-on-surface">Payment confirmed!</p>
+						<p class="text-sm text-gray-500 dark:text-on-surface-variant mt-1 font-body">Your payment has been received.</p>
+					} else {
+						<p class="text-lg font-headline font-bold text-gray-900 dark:text-on-surface">Thank you!</p>
+						<p class="text-sm text-gray-500 dark:text-on-surface-variant mt-1 font-body">Your donation has been confirmed.</p>
+					}
+				</div>
+			case database.StatusExpired:
+				<div class="text-center py-4">
+					<span class="material-symbols-outlined text-gray-400 dark:text-on-surface-variant/60 text-3xl mb-2">timer_off</span>
+					if tx.IsPayment {
+						<p class="text-sm font-headline font-medium text-gray-500 dark:text-on-surface-variant">This payment request has expired.</p>
+					} else {
+						<p class="text-sm font-headline font-medium text-gray-500 dark:text-on-surface-variant">This donation request has expired.</p>
+					}
+					<p class="text-xs font-mono text-gray-400 dark:text-on-surface-variant/50 mt-1 uppercase tracking-widest">No payment received within time limit</p>
+				</div>
+		}
+	</div>
+}

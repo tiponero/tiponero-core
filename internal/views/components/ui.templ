@@ -1,0 +1,93 @@
+package components
+
+import "fmt"
+
+templ PageTitle(title string) {
+	<div class="mb-8">
+		<h1 class="font-headline text-2xl font-bold tracking-tight">{ title }</h1>
+	</div>
+}
+
+templ SectionCard(title, icon string) {
+	<section class="bg-monero-gray/20 p-8 rounded-xl border border-outline-variant/10 flex flex-col">
+		<h3 class="font-headline text-xl font-bold mb-6 flex items-center gap-3">
+			<span class="material-symbols-outlined text-primary-container">{ icon }</span>
+			{ title }
+		</h3>
+		{ children... }
+	</section>
+}
+
+templ FormField(id, label, inputType, value, placeholder string, attrs templ.Attributes) {
+	<div class="space-y-1.5">
+		<label for={ id } class="text-xs font-mono uppercase tracking-widest text-on-surface-variant">{ label }</label>
+		<input
+			type={ inputType }
+			id={ id }
+			name={ id }
+			value={ value }
+			placeholder={ placeholder }
+			class="w-full bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30"
+			{ attrs... }
+		/>
+	</div>
+}
+
+templ FormTextarea(id, label, value, placeholder string, rows int, attrs templ.Attributes) {
+	<div class="space-y-1.5">
+		<label for={ id } class="text-xs font-mono uppercase tracking-widest text-on-surface-variant">{ label }</label>
+		<textarea
+			id={ id }
+			name={ id }
+			rows={ fmt.Sprintf("%d", rows) }
+			placeholder={ placeholder }
+			class="w-full bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30"
+			{ attrs... }
+		>{ value }</textarea>
+	</div>
+}
+
+templ PrimaryButton(text string, fullWidth bool) {
+	if fullWidth {
+		<button type="submit" class="w-full bg-primary-container py-3 px-6 text-black font-headline font-bold uppercase tracking-widest hover:brightness-90 transition-all rounded-md text-sm">
+			{ text }
+		</button>
+	} else {
+		<button type="submit" class="bg-primary-container py-3 px-6 text-black font-headline font-bold uppercase tracking-widest hover:brightness-90 transition-all rounded-md text-sm">
+			{ text }
+		</button>
+	}
+}
+
+templ FlashBanner(variant, message string) {
+	if variant == "success" {
+		<div class="bg-primary-container/10 text-primary-container p-4 rounded-md mb-8 text-sm font-body flex items-center gap-3">
+			<span class="material-symbols-outlined text-lg" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+			{ message }
+		</div>
+	} else {
+		<div class="bg-error-container/10 text-error p-3 rounded-md mb-6 text-sm font-body">{ message }</div>
+	}
+}
+
+templ OutlineLink(text, href, icon string, iconTrailing bool) {
+	<a
+		href={ templ.SafeURL(href) }
+		class="flex items-center gap-2 px-4 py-2 rounded-md text-xs font-headline font-medium uppercase tracking-widest border border-outline-variant/20 text-secondary-fixed-dim hover:bg-monero-gray/20 hover:text-primary-container transition-colors"
+	>
+		if !iconTrailing && icon != "" {
+			<span class="material-symbols-outlined text-base">{ icon }</span>
+		}
+		{ text }
+		if iconTrailing && icon != "" {
+			<span class="material-symbols-outlined text-base">{ icon }</span>
+		}
+	</a>
+}
+
+templ EmptyState(icon, message string) {
+	<div class="px-8 py-16 text-center">
+		<span class="material-symbols-outlined text-4xl text-monero-gray mb-4">{ icon }</span>
+		<p class="text-on-surface-variant font-body">{ message }</p>
+	</div>
+}

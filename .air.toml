@@ -1,0 +1,22 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "make build"
+  bin = "./bin/tiponero"
+  delay = 500
+  include_ext = ["go", "templ", "css"]
+  exclude_dir = ["tmp", "bin", "node_modules", "static/css"]
+  exclude_regex = ["_templ\\.go$"]
+  kill_delay = "1s"
+
+[log]
+  time = false
+
+[proxy]
+  enabled = true
+  proxy_port = 8081
+  app_port = 8080
+
+[misc]
+  clean_on_exit = true

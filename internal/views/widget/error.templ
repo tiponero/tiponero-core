@@ -1,0 +1,26 @@
+package widget
+
+import (
+	"github.com/tiponero/tiponero-core/internal/database"
+	"github.com/tiponero/tiponero-core/internal/views/layouts"
+)
+
+templ Error(w *database.Widget, message string) {
+	@layouts.WidgetPage("Error", w.Theme, w.PrimaryColor) {
+		<div class="w-full max-w-sm mx-auto">
+			<div class="bg-gray-50 dark:bg-surface-container-low/80 dark:backdrop-blur rounded-xl p-8 dark:shadow-[inset_1px_1px_0_0_rgba(57,57,57,0.1)]">
+				<div class="text-center">
+					<span class="material-symbols-outlined text-5xl text-red-400 mb-4 block">error_outline</span>
+					<h1 class="text-xl font-headline font-bold text-gray-900 dark:text-on-surface mb-3">Something went wrong</h1>
+					<p class="text-sm text-gray-500 dark:text-on-surface-variant font-body leading-relaxed mb-6">{ message }</p>
+					<a
+						href={ templ.SafeURL("/widget/" + w.ID) }
+						class="inline-block bg-brand-500 py-3 px-6 text-black font-headline font-bold uppercase tracking-widest hover:bg-brand-600 transition-all rounded-md text-sm"
+					>
+						Try Again
+					</a>
+				</div>
+			</div>
+		</div>
+	}
+}

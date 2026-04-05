@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+[x-cloak] {
+	display: none !important;
+}
+
+body {
+	font-family: 'Inter', sans-serif;
+}
+
+/* Material Symbols config */
+.material-symbols-outlined {
+	font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Scrollbar hiding for horizontal scroll areas */
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Selection color — brand orange */
+::selection {
+	background-color: #FF6600;
+	color: #ffffff;
+}

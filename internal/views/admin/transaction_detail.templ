@@ -1,0 +1,175 @@
+package admin
+
+import (
+	"fmt"
+	"github.com/tiponero/tiponero-core/internal/database"
+	"github.com/tiponero/tiponero-core/internal/monero"
+	"github.com/tiponero/tiponero-core/internal/views/components"
+	"github.com/tiponero/tiponero-core/internal/views/layouts"
+	"time"
+)
+
+templ TransactionDetail(tx *database.Transaction, widget *database.Widget, requiredConfirmations int, rpcStatus monero.ConnectionStatus) {
+	@layouts.Admin("Transaction", rpcStatus) {
+		<a href="/admin/transactions" class="inline-flex items-center gap-1 text-secondary-fixed-dim hover:text-primary-container transition-colors mb-6">
+			<span class="material-symbols-outlined text-[20px]">arrow_back</span>
+			<span class="text-sm font-headline tracking-tight">Transactions</span>
+		</a>
+		<h1 class="font-headline text-2xl font-bold tracking-tight mb-8">Transaction</h1>
+		<div
+			class="grid grid-cols-1 lg:grid-cols-2 gap-6"
+			x-data={ alpine_copyData() }
+		>
+			@components.SectionCard("Transaction", "receipt_long") {
+				<div class="space-y-5">
+					@detailField("Type") {
+						<span class="inline-flex rounded-md text-xs font-mono uppercase tracking-widest bg-primary-container/10 text-primary-container">
+							if tx.IsPayment {
+								Payment
+							} else {
+								Donation
+							}
+						</span>
+					}
+					@detailField("Status") {
+						<div class="flex flex-wrap items-center gap-3">
+							if tx.Status == database.StatusExpired {
+								<span class="inline-flex rounded-md text-xs font-mono uppercase tracking-widest bg-monero-gray/30 text-on-surface-variant/60">
+									{ string(tx.Status) }
+								</span>
+							} else {
+								<span class="inline-flex rounded-md text-xs font-mono uppercase tracking-widest bg-primary-container/10 text-primary-container">
+									{ string(tx.Status) }
+								</span>
+							}
+							if tx.Status == database.StatusConfirming {
+								<span class="text-xs font-mono text-on-surface-variant">
+									{ fmt.Sprintf("%d / %d confirmations", tx.Confirmations, requiredConfirmations) }
+								</span>
+							}
+						</div>
+					}
+					@detailField("ID") {
+						@copyField("txId", tx.ID)
+					}
+					@detailField("Subaddress") {
+						@copyField("subaddress", tx.Subaddress)
+					}
+					@detailField("TX Hash") {
+						if tx.TxHash != "" {
+							if isStagenet(tx.Subaddress) {
+								<code class="font-mono text-sm break-all select-all">{ tx.TxHash }</code>
+							} else {
+								<div class="flex items-center gap-2">
+									<a
+										href={ templ.SafeURL("https://localmonero.co/blocks/tx/" + tx.TxHash) }
+										target="_blank"
+										rel="noopener noreferrer"
+										class="font-mono text-sm text-primary-container hover:underline break-all"
+									>
+										{ tx.TxHash }
+									</a>
+									<a
+										href={ templ.SafeURL("https://localmonero.co/blocks/tx/" + tx.TxHash) }
+										target="_blank"
+										rel="noopener noreferrer"
+										class="material-symbols-outlined text-base text-primary-container shrink-0"
+									>
+										open_in_new
+									</a>
+								</div>
+							}
+						} else {
+							<span class="text-monero-gray">-</span>
+						}
+					}
+					@detailField("Amount") {
+						if tx.Amount > 0 {
+							<span class="font-mono">{ components.FormatXMR(tx.Amount) }</span>
+							if components.FormatFiat(tx.FiatAmount, tx.FiatCurrency) != "" {
+								<span class="text-on-surface-variant text-xs ml-1 font-mono">({ components.FormatFiat(tx.FiatAmount, tx.FiatCurrency) })</span>
+							}
+						} else {
+							<span class="text-on-surface-variant font-mono">Any amount</span>
+						}
+					}
+				</div>
+			}
+			@components.SectionCard("Details", "info") {
+				<div class="space-y-5">
+					@detailField("Donor") {
+						if tx.DonorName != "" {
+							<span>{ tx.DonorName }</span>
+						} else {
+							<span class="text-monero-gray">Anonymous</span>
+						}
+					}
+					if tx.Note != "" {
+						@detailField("Note") {
+							<span class="text-sm">{ tx.Note }</span>
+						}
+					}
+					@detailField("Widget") {
+						if widget != nil {
+							<a href={ templ.SafeURL(fmt.Sprintf("/widget/%s", widget.ID)) } target="_blank" class="text-primary-container hover:underline">{ widget.Name }</a>
+						} else if tx.WidgetID.Valid {
+							<span class="text-monero-gray">Deleted widget</span>
+						} else {
+							<span class="text-monero-gray">-</span>
+						}
+					}
+					@detailField("Created") {
+						<span class="font-mono text-sm">{ fmtTimestamp(tx.CreatedAt) }</span>
+					}
+					if tx.ConfirmedAt > 0 {
+						@detailField("Confirmed") {
+							<span class="font-mono text-sm">{ fmtTimestamp(tx.ConfirmedAt) }</span>
+						}
+					}
+					if tx.Status == database.StatusPending || tx.Status == database.StatusMempool || tx.Status == database.StatusConfirming {
+						@detailField("Expires") {
+							<span class="font-mono text-sm">{ fmtTimestamp(tx.ExpiresAt) }</span>
+						}
+					}
+				</div>
+			}
+		</div>
+	}
+}
+
+templ detailField(label string) {
+	<div>
+		<div class="text-xs font-mono uppercase tracking-widest text-on-surface-variant mb-1">{ label }</div>
+		<div class="text-on-surface min-h-8 flex items-center">
+			{ children... }
+		</div>
+	</div>
+}
+
+templ copyField(refName string, value string) {
+	<div class="flex items-center gap-2 min-w-0">
+		<code x-ref={ refName } class="font-mono text-sm truncate select-all">{ value }</code>
+		<button
+			type="button"
+			x-on:click={ fmt.Sprintf("copyText('%s')", refName) }
+			class="shrink-0 text-xs font-mono uppercase tracking-widest px-2 py-1 rounded-md transition-colors"
+			x-bind:class={ fmt.Sprintf("copied === '%s' ? 'bg-primary-container/10 text-primary-container' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-bright'", refName) }
+			x-text={ fmt.Sprintf("copied === '%s' ? 'Copied!' : 'Copy'", refName) }
+		></button>
+	</div>
+}
+
+func fmtTimestamp(unix int64) string {
+	if unix == 0 {
+		return "-"
+	}
+	return time.Unix(unix, 0).Format("2006-01-02 15:04:05")
+}
+
+func isStagenet(subaddress string) bool {
+	return len(subaddress) > 0 && (subaddress[0] == '5' || subaddress[0] == '7')
+}
+
+func alpine_copyData() string {
+	return "{ copied: false, copyText(ref) { var t = this.$refs[ref].textContent.trim(); var self = this; var fallback = function() { var ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); self.copied = ref; setTimeout(function(){ self.copied = false }, 2000) }; if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(t).then(function() { self.copied = ref; setTimeout(function(){ self.copied = false }, 2000) }).catch(fallback) } else { fallback() } } }"
+}

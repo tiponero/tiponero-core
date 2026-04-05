@@ -1,0 +1,6 @@
+.git
+.env
+*.db
+bin/
+result
+node_modules/

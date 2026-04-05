@@ -1,0 +1,110 @@
+package components
+
+import (
+	"fmt"
+
+	"github.com/tiponero/tiponero-core/internal/monero"
+)
+
+templ RPCStatusCard(status monero.ConnectionStatus) {
+	<div class="bg-monero-gray/20 p-8 rounded-xl border border-outline-variant/10">
+		<div class="space-y-4">
+			<div class="flex items-center gap-3">
+				if status.Connected {
+					<span class="relative flex h-3 w-3">
+						<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+						<span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+					</span>
+					<span class="text-sm font-mono text-green-400">CONNECTED</span>
+				} else if !status.Configured {
+					<span class="relative flex h-3 w-3">
+						<span class="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+					</span>
+					<span class="text-sm font-mono text-amber-400">NOT CONFIGURED</span>
+				} else {
+					<span class="relative flex h-3 w-3">
+						<span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+					</span>
+					<span class="text-sm font-mono text-red-400">DISCONNECTED</span>
+				}
+			</div>
+			if status.Connected {
+				<div class="flex justify-between text-sm">
+					<span class="text-on-surface-variant font-mono text-xs uppercase tracking-widest">Block Height</span>
+					<span class="font-mono text-primary-container">{ fmt.Sprintf("%d", status.BlockHeight) }</span>
+				</div>
+			}
+			if !status.Configured {
+				<div class="mt-2 p-3 bg-amber-500/10 rounded-md">
+					<p class="text-xs font-mono text-amber-300">Please configure your wallet RPC connection settings</p>
+				</div>
+			} else if status.Error != "" {
+				<div class="mt-2 p-3 bg-red-500/10 rounded-md">
+					<p class="text-xs font-mono uppercase tracking-widest text-red-400 mb-1">Error</p>
+					<p class="text-xs font-mono text-red-300 break-all">{ status.Error }</p>
+				</div>
+			}
+		</div>
+	</div>
+}
+
+templ RPCStatusDot(status monero.ConnectionStatus) {
+	<span class="flex items-center gap-2">
+		if status.Connected {
+			<span class="relative flex h-2.5 w-2.5" title="Wallet RPC connected">
+				<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+				<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+			</span>
+			<span class="hidden sm:inline text-xs font-mono uppercase tracking-widest text-green-400">Connected</span>
+		} else if !status.Configured {
+			<span class="relative flex h-2.5 w-2.5" title="Wallet RPC not configured">
+				<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+			</span>
+			<span class="hidden sm:inline text-xs font-mono uppercase tracking-widest text-amber-400">Not configured</span>
+		} else {
+			<span class="relative flex h-2.5 w-2.5" title="Wallet RPC disconnected">
+				<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+			</span>
+			<span class="hidden sm:inline text-xs font-mono uppercase tracking-widest text-red-400">Disconnected</span>
+		}
+	</span>
+}
+
+templ DashboardRPCMini(status monero.ConnectionStatus) {
+	<div class="bg-monero-gray/20 p-8 rounded-xl border border-outline-variant/10 relative overflow-hidden group">
+		<h3 class="text-xs font-label uppercase tracking-widest text-on-surface-variant mb-4">Wallet RPC</h3>
+		<div class="flex items-center gap-2">
+			if status.Connected {
+				<span class="relative flex h-2.5 w-2.5">
+					<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+					<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+				</span>
+				<span class="text-2xl font-headline font-bold text-green-400">Connected</span>
+			} else if !status.Configured {
+				<span class="relative flex h-2.5 w-2.5">
+					<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+				</span>
+				<span class="text-2xl font-headline font-bold text-amber-400">Not Configured</span>
+			} else {
+				<span class="relative flex h-2.5 w-2.5">
+					<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+				</span>
+				<span class="text-2xl font-headline font-bold text-red-400">Offline</span>
+			}
+		</div>
+		<div class="mt-4 text-xs font-mono text-secondary">
+			if status.Connected {
+				<div class="flex flex-col gap-1">
+					<span>Block Height: <span class="text-primary-container">{ fmt.Sprintf("%d", status.BlockHeight) }</span></span>
+					<span>Endpoint: <span class="text-primary-container">{ status.Host }:{ status.Port }</span></span>
+				</div>
+			} else if !status.Configured {
+				<span>Configure in Settings</span>
+			} else if status.Error != "" {
+				<span class="text-red-400 truncate" title={ status.Error }>{ status.Error }</span>
+			} else {
+				<span>Connection failed</span>
+			}
+		</div>
+	</div>
+}

@@ -1,0 +1,19 @@
+package admin
+
+import "github.com/tiponero/tiponero-core/internal/views/layouts"
+import "github.com/tiponero/tiponero-core/internal/views/components"
+
+templ Login(errorMsg string) {
+	@layouts.Auth("Login") {
+		<div class="bg-surface-container p-8 rounded-xl">
+			if errorMsg != "" {
+				@components.FlashBanner("error", errorMsg)
+			}
+			<form method="POST" action="/admin/login" class="space-y-5">
+				@components.FormField("username", "Username", "text", "", "", templ.Attributes{"required": true, "autofocus": true})
+				@components.FormField("password", "Password", "password", "", "", templ.Attributes{"required": true})
+				@components.PrimaryButton("Sign In", true)
+			</form>
+		</div>
+	}
+}

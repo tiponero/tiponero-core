@@ -1,0 +1,41 @@
+package admin
+
+import (
+	"github.com/tiponero/tiponero-core/internal/database"
+	"github.com/tiponero/tiponero-core/internal/monero"
+	"github.com/tiponero/tiponero-core/internal/views/components"
+	"github.com/tiponero/tiponero-core/internal/views/layouts"
+	"fmt"
+)
+
+templ Dashboard(stats *database.TransactionStats, recentTransactions []database.Transaction, status monero.ConnectionStatus) {
+	@layouts.Admin("Dashboard", status) {
+		@components.PageTitle("Dashboard")
+		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+			@components.StatsCard("Total Received", components.FormatXMR(stats.TotalAmount), fmt.Sprintf("%d transactions all time", stats.TotalTransactions))
+			@components.StatsCard("Today", components.FormatXMR(stats.TodayAmount), fmt.Sprintf("%d transactions today", stats.TodayCount))
+			@components.StatsCard("Pending", fmt.Sprintf("%d", stats.PendingCount), "Awaiting confirmation")
+			@components.DashboardRPCMini(status)
+		</div>
+		<div class="space-y-6">
+			<div class="flex items-center justify-between">
+				<h3 class="font-headline text-xl font-bold tracking-tight">Recent Transactions</h3>
+				@components.OutlineLink("View All", "/admin/transactions", "arrow_forward", true)
+			</div>
+			<div class="bg-surface-container-lowest rounded-xl overflow-hidden">
+				if len(recentTransactions) == 0 {
+					@components.EmptyState("inbox", "No transactions yet. Create a widget and share it to start receiving payments.")
+				} else {
+					<table class="w-full">
+						@components.TransactionTableHeader()
+						<tbody>
+							for _, t := range recentTransactions {
+								@components.TransactionRow(t)
+							}
+						</tbody>
+					</table>
+				}
+			</div>
+		</div>
+	}
+}

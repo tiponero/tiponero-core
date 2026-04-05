@@ -1,0 +1,65 @@
+package admin
+
+import (
+	"github.com/tiponero/tiponero-core/internal/monero"
+	"github.com/tiponero/tiponero-core/internal/views/components"
+	"github.com/tiponero/tiponero-core/internal/views/layouts"
+)
+
+templ TOTPSetup(secret string, qrDataURI string, errorMsg string, rpcStatus monero.ConnectionStatus) {
+	@layouts.Admin("Setup 2FA", rpcStatus) {
+		<div class="max-w-lg mx-auto">
+			@components.PageTitle("Enable Two-Factor Authentication")
+			@components.SectionCard("Setup 2FA", "shield") {
+				if errorMsg != "" {
+					@components.FlashBanner("error", errorMsg)
+				}
+				<div class="space-y-8">
+					<div>
+						<p class="text-sm text-on-surface-variant font-body mb-6 leading-relaxed">
+							Scan this QR code with your authenticator app (Google Authenticator, Aegis, etc.), then enter the 6-digit code below to confirm.
+						</p>
+						<div class="flex justify-center mb-6">
+							<div class="bg-white p-3 rounded-lg">
+								<img src={ qrDataURI } alt="TOTP QR Code" class="rounded"/>
+							</div>
+						</div>
+						<div class="text-center">
+							<p class="text-xs font-mono uppercase tracking-widest text-on-surface-variant mb-2">Manual Entry Secret</p>
+							<code class="text-sm font-mono bg-surface-container-lowest text-on-surface px-4 py-2 rounded-md select-all inline-block">{ secret }</code>
+						</div>
+					</div>
+					<form method="POST" action="/admin/settings/totp/confirm" class="space-y-5" x-data="{ code: '' }">
+						<div class="space-y-1.5">
+							<label for="totp_code" class="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant">Verification Code</label>
+							<input
+								type="text"
+								id="totp_code"
+								name="code"
+								x-model="code"
+								inputmode="numeric"
+								pattern="[0-9]{6}"
+								maxlength="6"
+								autocomplete="one-time-code"
+								autofocus
+								required
+								placeholder="000000"
+								class="w-full bg-surface-container-highest border-none text-on-surface p-4 font-mono text-center text-2xl tracking-[0.5em] rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30"
+							/>
+						</div>
+						<div class="flex gap-4">
+							@components.OutlineLink("Cancel", "/admin/settings", "", false)
+							<button
+								type="submit"
+								x-bind:disabled="code.length !== 6"
+								class="flex-1 bg-primary-container py-3 text-black font-headline font-bold uppercase tracking-widest hover:brightness-90 transition-all rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+							>
+								Enable 2FA
+							</button>
+						</div>
+					</form>
+				</div>
+			}
+		</div>
+	}
+}

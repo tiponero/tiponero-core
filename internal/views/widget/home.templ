@@ -1,0 +1,165 @@
+package widget
+
+import (
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"github.com/tiponero/tiponero-core/internal/database"
+	"github.com/tiponero/tiponero-core/internal/views/layouts"
+)
+
+func widgetPresetAmounts(w *database.Widget) []float64 {
+	var amounts []float64
+	if w.PresetAmounts != "" {
+		_ = json.Unmarshal([]byte(w.PresetAmounts), &amounts)
+	}
+	return amounts
+}
+
+func presetGridCols(n int) string {
+	switch n {
+	case 1:
+		return "grid-cols-1"
+	case 2:
+		return "grid-cols-2"
+	default:
+		return "grid-cols-3"
+	}
+}
+
+func formatPresetAmount(amount float64) string {
+	return strconv.FormatFloat(amount, 'f', -1, 64)
+}
+
+templ Home(w *database.Widget, user *database.User) {
+	if w.Mode == database.ModePayment {
+		@paymentHome(w, user)
+	} else {
+		@donationHome(w, user)
+	}
+}
+
+templ donationHome(w *database.Widget, user *database.User) {
+	@layouts.WidgetPage(user.DisplayName+" - Donate", w.Theme, w.PrimaryColor) {
+		<div class="w-full max-w-sm mx-auto">
+			<div class="bg-gray-50 dark:bg-surface-container-low/80 dark:backdrop-blur rounded-xl p-8 dark:shadow-[inset_1px_1px_0_0_rgba(57,57,57,0.1)]">
+				<div class="text-center mb-8">
+					if user.AvatarURL != "" {
+						<img src={ user.AvatarURL } alt={ user.DisplayName } class="w-20 h-20 rounded-full mx-auto mb-4 border-2 border-gray-200 dark:border-outline-variant/15"/>
+					}
+					if user.DisplayName != "" {
+						<h1 class="text-xl font-headline font-bold text-gray-900 dark:text-on-surface mb-1">{ user.DisplayName }</h1>
+					}
+					if user.Bio != "" {
+						<p class="text-sm text-gray-500 dark:text-on-surface-variant font-body">{ user.Bio }</p>
+					}
+				</div>
+				<p class="text-gray-600 dark:text-secondary-fixed-dim text-center mb-8 font-body text-sm leading-relaxed">{ w.CustomMessage }</p>
+				<form
+					method="POST"
+					action={ templ.SafeURL("/widget/" + w.ID + "/donate") }
+					class="space-y-5"
+					if len(widgetPresetAmounts(w)) > 0 {
+						x-data={ fmt.Sprintf("{ amount: '%s' }", formatPresetAmount(widgetPresetAmounts(w)[0])) }
+					} else {
+						x-data="{ amount: '' }"
+					}
+				>
+					<div>
+						<label class="text-xs font-mono uppercase tracking-widest text-gray-400 dark:text-on-surface-variant mb-2 block">Amount</label>
+						if len(widgetPresetAmounts(w)) > 0 {
+							<div class={ "grid gap-2 mb-3", presetGridCols(len(widgetPresetAmounts(w))) }>
+								for _, preset := range widgetPresetAmounts(w) {
+									<button
+										type="button"
+										@click={ fmt.Sprintf("amount = '%s'", formatPresetAmount(preset)) }
+										:class={ fmt.Sprintf("amount === '%s' ? 'bg-brand-500 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]' : 'bg-gray-100 dark:bg-surface-container-high text-gray-600 dark:text-on-surface-variant hover:bg-gray-200 dark:hover:bg-surface-bright'", formatPresetAmount(preset)) }
+										class="py-3 rounded-md text-sm font-mono font-medium transition-all"
+									>
+										{ formatPresetAmount(preset) } <span class="text-xs opacity-60">XMR</span>
+									</button>
+								}
+							</div>
+						}
+						<input
+							type="number"
+							name="amount"
+							x-model="amount"
+							step="0.000000000001"
+							min="0"
+							placeholder="Custom XMR amount (empty = any)"
+							class="w-full bg-gray-100 dark:bg-surface-container-highest border-none text-gray-900 dark:text-on-surface p-3 font-mono text-sm text-center rounded-md focus:outline-none focus:ring-1 focus:ring-brand-500/30"
+						/>
+					</div>
+					<hr class="border-gray-200 dark:border-outline-variant/40"/>
+					<div class="space-y-3">
+						<input
+							type="text"
+							name="donor_name"
+							placeholder="Your name (optional)"
+							class="w-full bg-gray-100 dark:bg-surface-container-highest border-none text-gray-900 dark:text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-brand-500/30"
+						/>
+						<input
+							type="text"
+							name="note"
+							placeholder="Message (optional)"
+							class="w-full bg-gray-100 dark:bg-surface-container-highest border-none text-gray-900 dark:text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-brand-500/30"
+						/>
+					</div>
+					<button
+						type="submit"
+						class="w-full bg-brand-500 py-3 text-black font-headline font-bold uppercase tracking-widest hover:bg-brand-600 transition-all rounded-md"
+					>
+						{ w.ButtonText }
+					</button>
+				</form>
+			</div>
+		</div>
+	}
+}
+
+templ paymentHome(w *database.Widget, user *database.User) {
+	@layouts.WidgetPage(user.DisplayName+" - Pay", w.Theme, w.PrimaryColor) {
+		<div class="w-full max-w-sm mx-auto">
+			<div class="bg-gray-50 dark:bg-surface-container-low/80 dark:backdrop-blur rounded-xl p-8 dark:shadow-[inset_1px_1px_0_0_rgba(57,57,57,0.1)]">
+				<div class="text-center mb-8">
+					if user.AvatarURL != "" {
+						<img src={ user.AvatarURL } alt={ user.DisplayName } class="w-20 h-20 rounded-full mx-auto mb-4 border-2 border-gray-200 dark:border-outline-variant/15"/>
+					}
+					if user.DisplayName != "" {
+						<h1 class="text-xl font-headline font-bold text-gray-900 dark:text-on-surface mb-1">{ user.DisplayName }</h1>
+					}
+					if user.Bio != "" {
+						<p class="text-sm text-gray-500 dark:text-on-surface-variant font-body">{ user.Bio }</p>
+					}
+				</div>
+				<p class="text-gray-600 dark:text-secondary-fixed-dim text-center mb-6 font-body text-sm leading-relaxed">{ w.CustomMessage }</p>
+				<div class="text-center mb-6">
+					<div class="flex items-baseline justify-center gap-2">
+						<span class="text-3xl font-headline font-bold text-brand-500">{ formatPresetAmount(widgetPresetAmounts(w)[0]) }</span>
+						<span class="text-sm font-mono text-gray-400 dark:text-on-surface-variant uppercase">XMR</span>
+					</div>
+				</div>
+				<form
+					method="POST"
+					action={ templ.SafeURL("/widget/" + w.ID + "/donate") }
+					class="space-y-5"
+				>
+					<input type="hidden" name="amount" value={ formatPresetAmount(widgetPresetAmounts(w)[0]) }/>
+					<input
+						type="text"
+						name="note"
+						placeholder="Reference (optional)"
+						class="w-full bg-gray-100 dark:bg-surface-container-highest border-none text-gray-900 dark:text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-brand-500/30"
+					/>
+					<button
+						type="submit"
+						class="w-full bg-brand-500 py-3 text-black font-headline font-bold uppercase tracking-widest hover:bg-brand-600 transition-all rounded-md"
+					>
+						{ w.ButtonText }
+					</button>
+				</form>
+			</div>
+		</div>
+	}
+}

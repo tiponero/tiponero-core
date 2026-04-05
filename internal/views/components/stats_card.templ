@@ -1,0 +1,31 @@
+package components
+
+import (
+	"fmt"
+	"strconv"
+)
+
+templ StatsCard(title string, value string, subtitle string) {
+	<div class="bg-monero-gray/20 p-8 rounded-xl border border-outline-variant/10 relative overflow-hidden group">
+		<h3 class="text-xs font-label uppercase tracking-widest text-on-surface-variant mb-4">{ title }</h3>
+		<div class="flex items-baseline gap-2">
+			<span class="text-4xl font-headline font-bold text-primary-container">{ value }</span>
+		</div>
+		if subtitle != "" {
+			<div class="mt-4 flex items-center gap-2 text-xs font-mono text-secondary">
+				<span>{ subtitle }</span>
+			</div>
+		}
+	</div>
+}
+
+func FormatXMR(piconero int64) string {
+	return strconv.FormatFloat(float64(piconero)/1e12, 'f', -1, 64) + " XMR"
+}
+
+func FormatFiat(amount float64, currency string) string {
+	if amount == 0 || currency == "" {
+		return ""
+	}
+	return fmt.Sprintf("%.2f %s", amount, currency)
+}

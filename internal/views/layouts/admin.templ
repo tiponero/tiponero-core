@@ -1,0 +1,156 @@
+package layouts
+
+import (
+	"github.com/tiponero/tiponero-core/internal/monero"
+	"github.com/tiponero/tiponero-core/internal/views/components"
+)
+
+templ Admin(title string, rpcStatus monero.ConnectionStatus) {
+	<!DOCTYPE html>
+	<html lang="en" class="dark">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>{ title } - Tiponero</title>
+			<link rel="apple-touch-icon" sizes="180x180" href="/static/images/favicon/apple-touch-icon.png"/>
+			<link rel="icon" type="image/png" sizes="32x32" href="/static/images/favicon/favicon-32x32.png"/>
+			<link rel="icon" type="image/png" sizes="16x16" href="/static/images/favicon/favicon-16x16.png"/>
+			<link rel="icon" type="image/x-icon" href="/static/images/favicon/favicon.ico"/>
+			<link rel="manifest" href="/static/images/favicon/site.webmanifest"/>
+			<link rel="stylesheet" href="/static/css/output.css"/>
+			<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+			<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+			<script src="/static/js/htmx.min.js"></script>
+			<script src="/static/js/alpine.min.js" defer></script>
+		</head>
+		<body class="bg-surface text-on-surface min-h-screen selection:bg-primary-container selection:text-white">
+			<script>
+				document.addEventListener('alpine:init', function() {
+					Alpine.store('toast', {
+						items: [],
+						show: function(variant, message, duration) {
+							if (!duration) duration = 4000;
+							var id = Date.now() + Math.random();
+							this.items.push({ id: id, variant: variant, message: message, removing: false });
+							var self = this;
+							setTimeout(function() { self.dismiss(id) }, duration);
+						},
+						dismiss: function(id) {
+							var item = this.items.find(function(t) { return t.id === id });
+							if (!item || item.removing) return;
+							item.removing = true;
+							var self = this;
+							setTimeout(function() { self.items = self.items.filter(function(t) { return t.id !== id }) }, 200);
+						}
+					});
+				});
+				document.body.addEventListener('toast', function(e) {
+					Alpine.store('toast').show(e.detail.variant, e.detail.message);
+				});
+			</script>
+			<header class="fixed top-0 w-full z-50 bg-surface-container-lowest/95 border-b border-outline-variant/15 backdrop-blur-md">
+				<div class="flex justify-between items-center w-full px-6 py-4 max-w-screen-2xl mx-auto">
+					<div class="flex items-center gap-8">
+						<a href="/admin" class="flex items-center gap-3">
+							<img src="/static/images/logo.png" alt="Tiponero" class="w-8 h-8 rounded"/>
+							<span class="text-primary-container font-headline font-bold text-2xl tracking-tighter uppercase">Tiponero</span>
+						</a>
+						<nav class="hidden md:flex items-center gap-6">
+							@navLink("Dashboard", "/admin", title == "Dashboard")
+							@navLink("Transactions", "/admin/transactions", title == "Transactions" || title == "Transaction")
+							@navLink("Widgets", "/admin/widgets", title == "Widgets")
+							@navLink("Settings", "/admin/settings", title == "Settings" || title == "Setup 2FA")
+						</nav>
+					</div>
+					<div class="flex items-center gap-4">
+						@components.RPCStatusDot(rpcStatus)
+						<form method="POST" action="/admin/logout">
+							<button type="submit" class="flex items-center gap-2 text-secondary-fixed-dim hover:text-primary-container transition-colors p-2">
+								<span class="material-symbols-outlined text-xl">logout</span>
+							</button>
+						</form>
+						<button class="md:hidden p-2 hover:bg-monero-gray/20 rounded-full" x-data x-on:click="$dispatch('toggle-mobile-nav')">
+							<span class="material-symbols-outlined text-secondary-fixed-dim">menu</span>
+						</button>
+					</div>
+				</div>
+			</header>
+			<div
+				x-data="{ open: false }"
+				x-on:toggle-mobile-nav.window="open = !open"
+				x-show="open"
+				x-cloak
+				x-transition:enter="transition ease-out duration-200"
+				x-transition:enter-start="opacity-0"
+				x-transition:enter-end="opacity-100"
+				x-transition:leave="transition ease-in duration-150"
+				x-transition:leave-start="opacity-100"
+				x-transition:leave-end="opacity-0"
+				class="fixed inset-0 z-40 md:hidden"
+			>
+				<div class="absolute inset-0 bg-surface/80 backdrop-blur-sm" x-on:click="open = false"></div>
+				<nav class="absolute top-[73px] left-0 right-0 bg-surface-container-lowest border-b border-outline-variant/15 p-6 space-y-4">
+					<a href="/admin" class="block font-headline tracking-tight font-medium text-secondary-fixed-dim hover:text-primary-container transition-colors">Dashboard</a>
+					<a href="/admin/transactions" class="block font-headline tracking-tight font-medium text-secondary-fixed-dim hover:text-primary-container transition-colors">Transactions</a>
+					<a href="/admin/widgets" class="block font-headline tracking-tight font-medium text-secondary-fixed-dim hover:text-primary-container transition-colors">Widgets</a>
+					<a href="/admin/settings" class="block font-headline tracking-tight font-medium text-secondary-fixed-dim hover:text-primary-container transition-colors">Settings</a>
+				</nav>
+			</div>
+			<main class="pt-24 px-6 pb-6 lg:px-12 lg:pb-12 min-h-screen bg-surface max-w-screen-2xl mx-auto">
+				{ children... }
+			</main>
+			<style>
+				@keyframes toast-in {
+					from { opacity: 0; transform: translateY(-0.5rem); }
+					to   { opacity: 1; transform: translateY(0); }
+				}
+				@keyframes toast-out {
+					from { opacity: 1; transform: translateY(0); }
+					to   { opacity: 0; transform: translateY(-0.5rem); }
+				}
+				.toast-enter { animation: toast-in 0.3s ease-out forwards; }
+				.toast-leave { animation: toast-out 0.2s ease-in forwards; }
+			</style>
+			<div
+				class="fixed top-6 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-3 items-center"
+				x-data
+				x-cloak
+			>
+				<template x-for="t in $store.toast.items" :key="t.id">
+					<div
+						:class="[
+							t.removing ? 'toast-leave' : 'toast-enter',
+							t.variant === 'success' ? 'bg-primary-container/15 text-primary-container' : t.variant === 'warn' ? 'bg-amber-500/15 text-amber-400' : 'bg-error-container/15 text-error'
+						]"
+						class="flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg backdrop-blur-sm max-w-sm font-body text-sm border border-tertiary"
+					>
+						<span
+							class="material-symbols-outlined text-lg shrink-0"
+							style="font-variation-settings: 'FILL' 1;"
+							x-text="t.variant === 'success' ? 'check_circle' : t.variant === 'warn' ? 'warning' : 'error'"
+						></span>
+						<span x-text="t.message" class="flex-1"></span>
+						<button
+							@click="$store.toast.dismiss(t.id)"
+							class="shrink-0 opacity-60 hover:opacity-100 transition-opacity text-base leading-none cursor-pointer"
+						>&times;</button>
+					</div>
+				</template>
+			</div>
+		</body>
+	</html>
+}
+
+templ navLink(label string, href string, active bool) {
+	if active {
+		<a
+			href={ templ.SafeURL(href) }
+			class="font-headline tracking-tight font-medium text-primary-container border-b-2 border-primary-container pb-1"
+		>{ label }</a>
+	} else {
+		<a
+			href={ templ.SafeURL(href) }
+			class="font-headline tracking-tight font-medium text-secondary-fixed-dim hover:text-primary-container transition-colors"
+		>{ label }</a>
+	}
+}

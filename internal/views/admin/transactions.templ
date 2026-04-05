@@ -1,0 +1,136 @@
+package admin
+
+import (
+	"fmt"
+	"github.com/tiponero/tiponero-core/internal/database"
+	"github.com/tiponero/tiponero-core/internal/monero"
+	"github.com/tiponero/tiponero-core/internal/views/components"
+	"github.com/tiponero/tiponero-core/internal/views/layouts"
+)
+
+templ Transactions(transactions []database.Transaction, currentFilter string, pag database.Pagination, rpcStatus monero.ConnectionStatus) {
+	@layouts.Admin("Transactions", rpcStatus) {
+		<div class="flex items-center justify-between mb-8">
+			<h1 class="font-headline text-2xl font-bold tracking-tight">Transactions</h1>
+			@components.OutlineLink("Export CSV", "/admin/transactions/export", "download", false)
+		</div>
+		<div class="bg-surface-container-lowest rounded-xl overflow-hidden">
+			<div class="px-6 py-4 flex gap-3">
+				@filterButton("All", "", currentFilter)
+				@filterButton("Pending", "pending", currentFilter)
+				@filterButton("Confirming", "confirming", currentFilter)
+				@filterButton("Confirmed", "confirmed", currentFilter)
+				@filterButton("Expired", "expired", currentFilter)
+			</div>
+			<div class="min-h-[680px] flex flex-col">
+				if len(transactions) == 0 {
+					<div class="flex-1 flex flex-col items-center justify-center px-8">
+						<span class="material-symbols-outlined text-4xl text-monero-gray mb-4">search_off</span>
+						<p class="text-on-surface-variant font-body">No transactions found.</p>
+					</div>
+				} else {
+					<table class="w-full">
+						@components.TransactionTableHeader()
+						<tbody>
+							for _, t := range transactions {
+								@components.TransactionRow(t)
+							}
+						</tbody>
+					</table>
+				}
+			</div>
+		</div>
+		if pag.TotalPages > 1 {
+			<div class="flex items-center justify-center mt-12 gap-2">
+				if pag.Page > 1 {
+					<a
+						href={ templ.SafeURL(paginationURL(currentFilter, pag.Page-1)) }
+						class="w-10 h-10 flex items-center justify-center font-mono text-sm hover:bg-surface-container transition-colors text-secondary-fixed-dim"
+					>
+						&lt;
+					</a>
+				} else {
+					<span class="w-10 h-10 flex items-center justify-center font-mono text-sm text-outline-variant/40">&lt;</span>
+				}
+				for _, p := range pageNumbers(pag.Page, pag.TotalPages) {
+					if p == -1 {
+						<span class="mx-2 text-on-secondary-fixed-variant">...</span>
+					} else if p == pag.Page {
+						<a
+							href={ templ.SafeURL(paginationURL(currentFilter, p)) }
+							class="w-10 h-10 flex items-center justify-center font-mono text-sm bg-primary-container text-on-primary-container font-bold"
+						>
+							{ fmt.Sprintf("%02d", p) }
+						</a>
+					} else {
+						<a
+							href={ templ.SafeURL(paginationURL(currentFilter, p)) }
+							class="w-10 h-10 flex items-center justify-center font-mono text-sm hover:bg-surface-container transition-colors text-secondary-fixed-dim"
+						>
+							{ fmt.Sprintf("%02d", p) }
+						</a>
+					}
+				}
+				if pag.Page < pag.TotalPages {
+					<a
+						href={ templ.SafeURL(paginationURL(currentFilter, pag.Page+1)) }
+						class="w-10 h-10 flex items-center justify-center font-mono text-sm hover:bg-surface-container transition-colors text-secondary-fixed-dim"
+					>
+						&gt;
+					</a>
+				} else {
+					<span class="w-10 h-10 flex items-center justify-center font-mono text-sm text-outline-variant/40">&gt;</span>
+				}
+			</div>
+		}
+	}
+}
+
+templ filterButton(label string, value string, current string) {
+	if value == current {
+		<a
+			href={ templ.SafeURL("/admin/transactions?status=" + value) }
+			class="px-3 py-1 rounded-md text-xs font-mono uppercase tracking-widest bg-primary-container/10 text-primary-container"
+		>
+			{ label }
+		</a>
+	} else {
+		<a
+			href={ templ.SafeURL("/admin/transactions?status=" + value) }
+			class="px-3 py-1 rounded-md text-xs font-mono uppercase tracking-widest bg-surface-container-high text-on-surface-variant hover:bg-surface-bright transition-colors"
+		>
+			{ label }
+		</a>
+	}
+}
+
+func paginationURL(statusFilter string, page int) string {
+	u := "/admin/transactions?"
+	if statusFilter != "" {
+		u += "status=" + statusFilter + "&"
+	}
+	u += fmt.Sprintf("page=%d", page)
+	return u
+}
+
+func pageNumbers(current, total int) []int {
+	if total <= 7 {
+		pages := make([]int, total)
+		for i := range pages {
+			pages[i] = i + 1
+		}
+		return pages
+	}
+	pages := []int{1}
+	if current > 3 {
+		pages = append(pages, -1)
+	}
+	for p := max(2, current-1); p <= min(total-1, current+1); p++ {
+		pages = append(pages, p)
+	}
+	if current < total-2 {
+		pages = append(pages, -1)
+	}
+	pages = append(pages, total)
+	return pages
+}

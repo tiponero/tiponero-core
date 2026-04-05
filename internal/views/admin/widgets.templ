@@ -1,0 +1,286 @@
+package admin
+
+import (
+	"github.com/tiponero/tiponero-core/internal/database"
+	"github.com/tiponero/tiponero-core/internal/monero"
+	"github.com/tiponero/tiponero-core/internal/views/components"
+	"github.com/tiponero/tiponero-core/internal/views/layouts"
+	"fmt"
+)
+
+templ Widgets(widgets []database.Widget, hostURL string, rpcStatus monero.ConnectionStatus) {
+	@layouts.Admin("Widgets", rpcStatus) {
+		@components.PageTitle("Widgets")
+		<script>
+			(function() {
+				var p = new URLSearchParams(window.location.search);
+				var t = p.get('toast');
+				if (t) {
+					history.replaceState(null, '', window.location.pathname);
+					document.addEventListener('alpine:initialized', function() {
+						if (t === 'created') Alpine.store('toast').show('success', 'Widget created.');
+						if (t === 'deleted') Alpine.store('toast').show('success', 'Widget deleted.');
+					}, { once: true });
+					if (window.Alpine && Alpine.store('toast')) {
+						if (t === 'created') Alpine.store('toast').show('success', 'Widget created.');
+						if (t === 'deleted') Alpine.store('toast').show('success', 'Widget deleted.');
+					}
+				}
+			})();
+		</script>
+		<div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+			<div class="lg:col-span-5">
+				  @components.SectionCard("Create Widget", "add_box") {
+				  	<form method="POST" action="/admin/widgets" class="space-y-5" x-data="{ mode: 'donation', presets: [0.01, 0.05, 0.1], newPreset: '', paymentPrice: '', addPreset() { var v = parseFloat(this.newPreset); if (!isNaN(v) && v > 0 && this.presets.indexOf(v) === -1) { this.presets.push(v); this.newPreset = ''; } }, removePreset(i) { this.presets.splice(i, 1); }, presetsJSON() { if (this.mode === 'payment') { var p = parseFloat(this.paymentPrice); return !isNaN(p) && p > 0 ? JSON.stringify([p]) : ''; } return this.presets.length > 0 ? JSON.stringify(this.presets) : ''; } }" @submit="$refs.preset_amounts_input.value = presetsJSON()">
+				  		@components.FormField("name", "Widget Name", "text", "", "Blog Sidebar", templ.Attributes{"required": true})
+				  		<div class="space-y-1.5">
+				  			<label class="text-xs font-mono uppercase tracking-widest text-on-surface-variant">Mode</label>
+				  			<div class="grid grid-cols-2 gap-2">
+				  				<button
+				  					type="button"
+				  					@click="mode = 'donation'"
+				  					:class="mode === 'donation' ? 'bg-primary-container/20 text-primary-container ring-1 ring-primary-container/30' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-bright'"
+				  					class="py-2.5 rounded-md text-sm font-mono font-medium transition-all text-center"
+				  				>
+				  					Donation
+				  				</button>
+				  				<button
+				  					type="button"
+				  					@click="mode = 'payment'"
+				  					:class="mode === 'payment' ? 'bg-primary-container/20 text-primary-container ring-1 ring-primary-container/30' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-bright'"
+				  					class="py-2.5 rounded-md text-sm font-mono font-medium transition-all text-center"
+				  				>
+				  					Payment
+				  				</button>
+				  			</div>
+				  			<input type="hidden" name="mode" x-bind:value="mode"/>
+				  		</div>
+				  		<div x-show="mode === 'donation'" class="space-y-1.5">
+				  			<label class="text-xs font-mono uppercase tracking-widest text-on-surface-variant">Preset Amounts (XMR)</label>
+				  			<div class="flex gap-2">
+				  				<input
+				  					type="number"
+				  					x-model="newPreset"
+				  					step="0.000000000001"
+				  					min="0.000000000001"
+				  					placeholder="0.25"
+				  					@keydown.enter.prevent="addPreset()"
+				  					class="flex-1 bg-surface-container-highest border-none text-on-surface p-3 font-mono text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30"
+				  				/>
+				  				<button
+				  					type="button"
+				  					@click="addPreset()"
+				  					class="px-4 bg-surface-container-high text-on-surface-variant hover:bg-surface-bright text-xs font-mono uppercase tracking-widest rounded-md transition-colors"
+				  				>
+				  					Add
+				  				</button>
+				  			</div>
+				  			<div class="flex flex-wrap gap-2" x-show="presets.length > 0">
+				  				<template x-for="(preset, index) in presets" :key="index">
+				  					<span class="inline-flex items-center gap-1 bg-primary-container/10 text-primary-container text-xs font-mono px-2 py-1 rounded-md">
+				  						<span x-text="preset"></span>
+				  						<button type="button" @click="removePreset(index)" class="text-error text-base leading-none ml-0.5 hover:brightness-125 transition-colors cursor-pointer">&times;</button>
+				  					</span>
+				  				</template>
+				  			</div>
+				  		</div>
+				  		<div x-show="mode === 'payment'" x-cloak class="space-y-1.5">
+				  			<label for="payment_price" class="text-xs font-mono uppercase tracking-widest text-on-surface-variant">Price (XMR)</label>
+				  			<input
+				  				type="number"
+				  				id="payment_price"
+				  				step="0.000000000001"
+				  				min="0.000000000001"
+				  				placeholder="0.05"
+				  				x-model="paymentPrice"
+				  				x-bind:required="mode === 'payment'"
+				  				class="w-full bg-surface-container-highest border-none text-on-surface p-3 font-mono text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30"
+				  			/>
+				  		</div>
+				  		<input type="hidden" name="preset_amounts" x-ref="preset_amounts_input"/>
+				  		@components.FormField("button_text", "Button Text", "text", "Donate", "", templ.Attributes{})
+				  		@components.FormField("custom_message", "Custom Message", "text", "Your support is appreciated!", "", templ.Attributes{})
+				  		<div class="space-y-1.5">
+				  			<label for="redirect_url" class="text-xs font-mono uppercase tracking-widest text-on-surface-variant">Redirect URL (optional)</label>
+				  			<input
+				  				type="url"
+				  				id="redirect_url"
+				  				name="redirect_url"
+				  				placeholder="https://example.com/thank-you"
+				  				class="w-full bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30"
+				  			/>
+				  		</div>
+				  		<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="space-y-1.5">
+				  				<label for="primary_color" class="text-xs font-mono uppercase tracking-widest text-on-surface-variant">Accent Color</label>
+				  				<div class="space-y-2 p-2 bg-surface-container-highest rounded-md" x-data="{ color: '#ff6600' }">
+				  					<div class="flex gap-2 items-center">
+				  						<button type="button" @click="color = '#FF6600'" :class="color === '#FF6600' ? 'ring-2 ring-white/70 ring-offset-2 ring-offset-surface-container-highest' : ''" class="w-8 h-8 rounded-md bg-[#FF6600] transition-all shrink-0"></button>
+				  						<button type="button" @click="color = '#009cfc'" :class="color === '#009cfc' ? 'ring-2 ring-white/70 ring-offset-2 ring-offset-surface-container-highest' : ''" class="w-8 h-8 rounded-md bg-[#009cfc] transition-all shrink-0"></button>
+				  						<button type="button" @click="color = '#9ccaff'" :class="color === '#9ccaff' ? 'ring-2 ring-white/70 ring-offset-2 ring-offset-surface-container-highest' : ''" class="w-8 h-8 rounded-md bg-[#9ccaff] transition-all shrink-0"></button>
+				  						<button type="button" @click="color = '#ffb4ab'" :class="color === '#ffb4ab' ? 'ring-2 ring-white/70 ring-offset-2 ring-offset-surface-container-highest' : ''" class="w-8 h-8 rounded-md bg-[#ffb4ab] transition-all shrink-0"></button>
+				  					</div>
+				  					<div class="flex items-center gap-2">
+				  						<input type="color" x-model="color" class="w-8 h-8 rounded-md cursor-pointer bg-transparent border-none p-0 shrink-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch]:border-none [&::-moz-color-swatch]:rounded-md [&::-moz-color-swatch]:border-none"/>
+				  						<input type="text" x-model="color" maxlength="7" pattern="^#[0-9a-fA-F]{6}$" class="flex-1 bg-surface-container-high border-none text-on-surface-variant font-mono text-xs p-1.5 rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 uppercase"/>
+				  					</div>
+				  					<input type="hidden" name="primary_color" x-bind:value="color"/>
+				  				</div>
+				  			</div>
+				  			<div class="space-y-1.5">
+				  				<label for="theme" class="text-xs font-mono uppercase tracking-widest text-on-surface-variant">Theme</label>
+				  				<select
+				  					id="theme"
+				  					name="theme"
+				  					class="w-full bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 appearance-none"
+				  				>
+				  					<option value="system">System Default</option>
+				  					<option value="light">Light</option>
+				  					<option value="dark">Dark</option>
+				  				</select>
+				  			</div>
+              </div>
+				  		<div class="flex items-center gap-3">
+				  			<input
+				  				type="checkbox"
+				  				id="show_stats"
+				  				name="show_stats"
+				  				checked
+				  				class="rounded-md border-outline-variant bg-surface-container-highest text-primary-container focus:ring-primary/30"
+				  			/>
+				  			<label for="show_stats" class="text-sm font-body text-on-surface-variant">Show stats on badge</label>
+				  		</div>
+				  		@components.PrimaryButton("Create Widget", true)
+				  	</form>
+				  }
+				</div>
+			<div class="lg:col-span-7 space-y-6">
+				if len(widgets) == 0 {
+					<div class="bg-surface-container-lowest rounded-xl">
+						@components.EmptyState("widgets", "No widgets yet. Create your first widget to start accepting payments.")
+					</div>
+				}
+				for _, w := range widgets {
+					@widgetCard(w, hostURL)
+				}
+			</div>
+		</div>
+	}
+}
+
+templ widgetCard(w database.Widget, hostURL string) {
+	<div
+		x-data="{ open: false, confirmDelete: false, copied: false, copyText(ref) { var t = this.$refs[ref].textContent.trim(); var self = this; var fallback = function() { var ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); self.copied = ref; setTimeout(function(){ self.copied = false }, 2000) }; if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(t).then(function() { self.copied = ref; setTimeout(function(){ self.copied = false }, 2000) }).catch(fallback) } else { fallback() } } }"
+		class="bg-surface-container-lowest border-l-4 border-tertiary group transition-all hover:bg-monero-gray/20"
+	>
+		<div class="flex items-center justify-between p-6">
+			<div class="flex items-center gap-4 cursor-pointer flex-1 min-w-0" @click="open = !open">
+				<span
+					class="material-symbols-outlined text-on-surface-variant text-lg transition-transform"
+					:class="open && 'rotate-90'"
+				>chevron_right</span>
+				<div class="min-w-0">
+					<h4 class="font-headline text-lg font-bold text-on-surface truncate">{ w.Name }</h4>
+					<p class="text-xs text-on-surface-variant truncate font-body">{ w.CustomMessage }</p>
+				</div>
+			</div>
+			<div class="flex items-center gap-3 ml-4">
+				if w.Mode == database.ModePayment {
+					<span class="inline-flex items-center gap-1 bg-primary-container/10 text-primary-container text-xs font-mono px-2 py-0.5 rounded-md uppercase">
+						<span class="material-symbols-outlined text-xs">payment</span>
+						Payment
+					</span>
+				} else {
+					<span class="inline-flex items-center gap-1 bg-primary-container/10 text-primary-container text-xs font-mono px-2 py-0.5 rounded-md uppercase">
+						<span class="material-symbols-outlined text-xs">volunteer_activism</span>
+						Donation
+					</span>
+				}
+				<span class="bg-primary-container/10 text-primary-container text-xs font-mono px-2 py-0.5 rounded-md uppercase">Active</span>
+				<div class="flex items-center gap-1">
+					<template x-if="!confirmDelete">
+						<button type="button" @click="confirmDelete = true" class="flex items-center gap-1 text-error text-xs font-mono uppercase tracking-widest hover:bg-error-container/20 px-2 py-1 rounded-md transition-colors">
+							<span class="material-symbols-outlined text-sm">delete</span>
+							Delete
+						</button>
+					</template>
+					<template x-if="confirmDelete">
+						<div class="flex items-center gap-1">
+							<span class="text-on-surface-variant text-xs font-mono leading-none">Sure?</span>
+							<button type="button" @click="confirmDelete = false" class="text-on-surface-variant text-xs font-mono uppercase tracking-widest leading-none hover:bg-surface-container-high px-2 py-1 rounded-md transition-colors">
+								Cancel
+							</button>
+							<form class="flex" method="POST" action={ templ.SafeURL(fmt.Sprintf("/admin/widgets/%s/delete", w.ID)) }>
+								<button type="submit" class="text-error text-xs font-mono uppercase tracking-widest leading-none hover:bg-error-container/20 px-2 py-1 rounded-md transition-colors font-bold">
+									Delete
+								</button>
+							</form>
+						</div>
+					</template>
+				</div>
+			</div>
+		</div>
+		<div x-show="open" x-cloak x-transition class="p-6 pt-0 space-y-6">
+			<div class="rounded-lg overflow-hidden bg-surface-container-high">
+				<iframe
+					src={ fmt.Sprintf("/widget/%s", w.ID) }
+					width="100%"
+					height="480"
+					frameborder="0"
+					sandbox="allow-same-origin allow-scripts"
+					class="bg-surface"
+					onload="this.contentWindow.postMessage({prefersDark:true},'*')"
+				></iframe>
+			</div>
+			<img
+				src={ fmt.Sprintf("/widget/%s/badge.svg", w.ID) }
+				alt="Widget badge"
+				class="rounded-md max-w-full h-auto"
+			/>
+			<details class="group/details">
+				<summary class="flex cursor-pointer items-center justify-between rounded-md px-4 py-3 text-xs font-mono uppercase tracking-widest text-on-surface-variant bg-surface-container-high hover:bg-surface-bright transition-colors">
+					<span class="flex items-center gap-2">
+						<span class="material-symbols-outlined text-sm">code</span>
+						Widget Embed
+					</span>
+					<span class="material-symbols-outlined text-sm transition-transform group-open/details:rotate-180">expand_more</span>
+				</summary>
+				<div class="mt-3 space-y-3">
+					@copyBox("Widget URL", "widgetUrl", fmt.Sprintf(`%s/widget/%s`, hostURL, w.ID))
+					@copyBox("Embed Code", "embedCode", fmt.Sprintf(`<iframe src="%s/widget/%s" width="400" height="600" frameborder="0"></iframe>`, hostURL, w.ID))
+				</div>
+			</details>
+			<details class="group/details">
+				<summary class="flex cursor-pointer items-center justify-between rounded-md px-4 py-3 text-xs font-mono uppercase tracking-widest text-on-surface-variant bg-surface-container-high hover:bg-surface-bright transition-colors">
+					<span class="flex items-center gap-2">
+						<span class="material-symbols-outlined text-sm">badge</span>
+						Badge Embed
+					</span>
+					<span class="material-symbols-outlined text-sm transition-transform group-open/details:rotate-180">expand_more</span>
+				</summary>
+				<div class="mt-3 space-y-3">
+					@copyBox("Badge URL", "badgeUrl", fmt.Sprintf(`%s/widget/%s/badge.svg`, hostURL, w.ID))
+					@copyBox("Markdown", "badgeMarkdown", fmt.Sprintf(`[![Donate with Tiponero](%s/widget/%s/badge.svg)](%s/widget/%s)`, hostURL, w.ID, hostURL, w.ID))
+				</div>
+			</details>
+		</div>
+	</div>
+}
+
+templ copyBox(label string, refName string, value string) {
+	<div class="bg-surface-container-lowest rounded-md p-4">
+		<div class="flex items-center justify-between mb-2">
+			<p class="text-xs font-mono uppercase tracking-widest text-on-surface-variant">{ label }</p>
+			<button
+				type="button"
+				x-on:click={ fmt.Sprintf("copyText('%s')", refName) }
+				class="text-xs font-mono uppercase tracking-widest px-2 py-1 rounded-md transition-colors"
+				x-bind:class={ fmt.Sprintf("copied === '%s' ? 'bg-primary-container/10 text-primary-container' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-bright'", refName) }
+				x-text={ fmt.Sprintf("copied === '%s' ? 'Copied!' : 'Copy'", refName) }
+			></button>
+		</div>
+		<code x-ref={ refName } class="text-xs font-mono text-on-surface-variant/80 break-all select-all block">
+			{ value }
+		</code>
+	</div>
+}
