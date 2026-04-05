@@ -2,6 +2,8 @@
 
 A self-hosted Monero payments engine. Single Go binary with embedded SQLite, HTMX frontend, and per-transaction subaddress generation for privacy-preserving payments and donations.
 
+[![Support Tiponero](https://demo.tiponero.org/widget/dda5980a-157f-4fed-8b19-97b4940ef808/badge.svg)](https://demo.tiponero.org/widget/dda5980a-157f-4fed-8b19-97b4940ef808)
+
 ## Features
 
 - **Developer REST API** at `/api/v1` with bearer token authentication via named API keys

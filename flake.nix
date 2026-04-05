@@ -16,7 +16,7 @@
       packages = forAllSystems (pkgs: rec {
         tiponero = pkgs.buildGoModule {
           pname = "tiponero";
-          version = "0.1.0";
+          version = "1.0.0";
           src = pkgs.lib.cleanSource ./.;
 
           vendorHash = null;

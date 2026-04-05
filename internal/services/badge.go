@@ -50,7 +50,7 @@ func GenerateBadgeSVG(p BadgeParams) ([]byte, error) {
 
 	fmt.Fprintf(&svg,
 		`<text x="20" y="42" fill="%s" font-family="'Space Grotesk','Inter',system-ui,sans-serif" font-size="18" font-weight="700" letter-spacing="-0.02em">%s</text>`,
-		escapeXML(p.Widget.PrimaryColor), escapeXML(p.Widget.Name),
+		escapeXML(p.Widget.PrimaryColor), escapeXML(p.Widget.ButtonText),
 	)
 
 	if p.Widget.ShowStats && p.Stats != nil {
