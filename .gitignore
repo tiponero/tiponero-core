@@ -27,9 +27,6 @@ go.work.sum
 # env file
 .env
 
-# Node
-node_modules/
-
 # Build artifacts
 bin/
 tmp/

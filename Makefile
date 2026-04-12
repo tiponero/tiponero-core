@@ -1,4 +1,4 @@
-TAILWIND := npx tailwindcss
+TAILWIND := tailwindcss
 BINARY := bin/tiponero
 
 .PHONY: generate css build dev lint clean

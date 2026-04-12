@@ -10,16 +10,36 @@ body {
 	font-family: 'Inter', sans-serif;
 }
 
-/* Material Symbols config */
 .material-symbols-outlined {
 	font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
-/* Scrollbar hiding for horizontal scroll areas */
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* Selection color — brand orange */
+main {
+	scrollbar-width: thin;
+	scrollbar-color: #353534 transparent;
+}
+main::-webkit-scrollbar { width: 6px; }
+main::-webkit-scrollbar-track { background: transparent; }
+main::-webkit-scrollbar-thumb { background: #353534; border-radius: 9999px; }
+main::-webkit-scrollbar-thumb:hover { background: #4d4d4d; }
+
+html,
+body {
+	scrollbar-width: thin;
+	scrollbar-color: rgba(128,128,128,0.3) transparent;
+}
+html::-webkit-scrollbar,
+body::-webkit-scrollbar { width: 6px; }
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track { background: transparent; }
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.3); border-radius: 9999px; }
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover { background: rgba(128,128,128,0.5); }
+
 ::selection {
 	background-color: #FF6600;
 	color: #ffffff;
