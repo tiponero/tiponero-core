@@ -1,5 +1,5 @@
-# github.com/a-h/templ v0.3.1001
-## explicit; go 1.23.0
+# github.com/a-h/templ v0.3.1020
+## explicit; go 1.25.0
 github.com/a-h/templ
 github.com/a-h/templ/runtime
 github.com/a-h/templ/safehtml
