@@ -47,7 +47,7 @@ func Admin(title string, rpcStatus monero.ConnectionStatus) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " - Tiponero</title><link rel=\"apple-touch-icon\" sizes=\"180x180\" href=\"/static/images/favicon/apple-touch-icon.png\"><link rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"/static/images/favicon/favicon-32x32.png\"><link rel=\"icon\" type=\"image/png\" sizes=\"16x16\" href=\"/static/images/favicon/favicon-16x16.png\"><link rel=\"icon\" type=\"image/x-icon\" href=\"/static/images/favicon/favicon.ico\"><link rel=\"manifest\" href=\"/static/images/favicon/site.webmanifest\"><link rel=\"stylesheet\" href=\"/static/css/output.css\"><link href=\"https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap\" rel=\"stylesheet\"><link href=\"https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap\" rel=\"stylesheet\"><script src=\"/static/js/htmx.min.js\"></script><script src=\"/static/js/alpine.min.js\" defer></script></head><body class=\"bg-surface text-on-surface min-h-screen selection:bg-primary-container selection:text-white\"><script>\n\t\t\t\tdocument.addEventListener('alpine:init', function() {\n\t\t\t\t\tAlpine.store('toast', {\n\t\t\t\t\t\titems: [],\n\t\t\t\t\t\tshow: function(variant, message, duration) {\n\t\t\t\t\t\t\tif (!duration) duration = 4000;\n\t\t\t\t\t\t\tvar id = Date.now() + Math.random();\n\t\t\t\t\t\t\tthis.items.push({ id: id, variant: variant, message: message, removing: false });\n\t\t\t\t\t\t\tvar self = this;\n\t\t\t\t\t\t\tsetTimeout(function() { self.dismiss(id) }, duration);\n\t\t\t\t\t\t},\n\t\t\t\t\t\tdismiss: function(id) {\n\t\t\t\t\t\t\tvar item = this.items.find(function(t) { return t.id === id });\n\t\t\t\t\t\t\tif (!item || item.removing) return;\n\t\t\t\t\t\t\titem.removing = true;\n\t\t\t\t\t\t\tvar self = this;\n\t\t\t\t\t\t\tsetTimeout(function() { self.items = self.items.filter(function(t) { return t.id !== id }) }, 200);\n\t\t\t\t\t\t}\n\t\t\t\t\t});\n\t\t\t\t});\n\t\t\t\tdocument.body.addEventListener('toast', function(e) {\n\t\t\t\t\tAlpine.store('toast').show(e.detail.variant, e.detail.message);\n\t\t\t\t});\n\t\t\t</script><header class=\"fixed top-0 w-full z-50 bg-surface-container-lowest/95 border-b border-outline-variant/15 backdrop-blur-md\"><div class=\"flex justify-between items-center w-full px-6 py-4 max-w-screen-2xl mx-auto\"><div class=\"flex items-center gap-8\"><a href=\"/admin\" class=\"flex items-center gap-3\"><img src=\"/static/images/logo.png\" alt=\"Tiponero\" class=\"w-8 h-8 rounded\"> <span class=\"text-primary-container font-headline font-bold text-2xl tracking-tighter uppercase\">Tiponero</span></a><nav class=\"hidden md:flex items-center gap-6\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " - Tiponero</title><link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/images/favicon/favicon.svg\"><link rel=\"apple-touch-icon\" sizes=\"180x180\" href=\"/static/images/favicon/apple-touch-icon.png\"><link rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"/static/images/favicon/favicon-32x32.png\"><link rel=\"icon\" type=\"image/png\" sizes=\"16x16\" href=\"/static/images/favicon/favicon-16x16.png\"><link rel=\"icon\" type=\"image/x-icon\" href=\"/static/images/favicon/favicon.ico\"><link rel=\"manifest\" href=\"/static/images/favicon/site.webmanifest\"><link rel=\"stylesheet\" href=\"/static/css/output.css\"><link href=\"https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap\" rel=\"stylesheet\"><link href=\"https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap\" rel=\"stylesheet\"><script src=\"/static/js/htmx.min.js\"></script><script src=\"/static/js/alpine.min.js\" defer></script></head><body class=\"bg-surface text-on-surface min-h-screen selection:bg-primary-container selection:text-white\"><script>\n\t\t\t\tdocument.addEventListener('alpine:init', function() {\n\t\t\t\t\tAlpine.store('toast', {\n\t\t\t\t\t\titems: [],\n\t\t\t\t\t\tshow: function(variant, message, duration) {\n\t\t\t\t\t\t\tif (!duration) duration = 4000;\n\t\t\t\t\t\t\tvar id = Date.now() + Math.random();\n\t\t\t\t\t\t\tthis.items.push({ id: id, variant: variant, message: message, removing: false });\n\t\t\t\t\t\t\tvar self = this;\n\t\t\t\t\t\t\tsetTimeout(function() { self.dismiss(id) }, duration);\n\t\t\t\t\t\t},\n\t\t\t\t\t\tdismiss: function(id) {\n\t\t\t\t\t\t\tvar item = this.items.find(function(t) { return t.id === id });\n\t\t\t\t\t\t\tif (!item || item.removing) return;\n\t\t\t\t\t\t\titem.removing = true;\n\t\t\t\t\t\t\tvar self = this;\n\t\t\t\t\t\t\tsetTimeout(function() { self.items = self.items.filter(function(t) { return t.id !== id }) }, 200);\n\t\t\t\t\t\t}\n\t\t\t\t\t});\n\t\t\t\t});\n\t\t\t\tdocument.body.addEventListener('toast', function(e) {\n\t\t\t\t\tAlpine.store('toast').show(e.detail.variant, e.detail.message);\n\t\t\t\t});\n\t\t\t</script><header class=\"fixed top-0 w-full z-50 bg-surface-container-lowest/95 border-b border-outline-variant/15 backdrop-blur-md\"><div class=\"flex justify-between items-center w-full px-6 py-4 max-w-screen-2xl mx-auto\"><div class=\"flex items-center gap-8\"><a href=\"/admin\" class=\"flex items-center gap-3\"><img src=\"/static/images/logo.svg\" alt=\"Tiponero\" class=\"w-8 h-8\"> <span class=\"text-primary-container font-headline font-bold text-2xl tracking-tighter uppercase\">Tiponero</span></a><nav class=\"hidden md:flex items-center gap-6\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -120,7 +120,7 @@ func navLink(label string, href string, active bool) templ.Component {
 			var templ_7745c5c3_Var4 templ.SafeURL
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(href))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/layouts/admin.templ`, Line: 147, Col: 29}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/layouts/admin.templ`, Line: 148, Col: 29}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -133,7 +133,7 @@ func navLink(label string, href string, active bool) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/layouts/admin.templ`, Line: 149, Col: 10}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/layouts/admin.templ`, Line: 150, Col: 10}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -151,7 +151,7 @@ func navLink(label string, href string, active bool) templ.Component {
 			var templ_7745c5c3_Var6 templ.SafeURL
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(href))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/layouts/admin.templ`, Line: 152, Col: 29}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/layouts/admin.templ`, Line: 153, Col: 29}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -164,7 +164,7 @@ func navLink(label string, href string, active bool) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/layouts/admin.templ`, Line: 154, Col: 10}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/layouts/admin.templ`, Line: 155, Col: 10}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {

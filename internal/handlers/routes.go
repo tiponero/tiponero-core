@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"io/fs"
+	"mime"
 	"net/http"
 	"time"
 
@@ -30,6 +31,7 @@ func NewRouter(db *database.DB, authSvc *auth.Service, wallet *monero.ClientHold
 	r.Use(middleware.Recoverer)
 
 	staticFS, _ := fs.Sub(static.Assets, ".")
+	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
