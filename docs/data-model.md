@@ -1,6 +1,6 @@
 # Data Model
 
-Tiponero Core stores all state in one SQLite database. This document describes the five tables, their columns, their relations, and the conventions that the code applies to each value.
+Tiponero Core stores all state in one SQLite database. This document describes the eight tables, their columns, their relations, and the conventions that the code applies to each value.
 
 **Audience:** maintainers and operators.
 
@@ -14,9 +14,9 @@ Tiponero Core stores all state in one SQLite database. This document describes t
 | File | `DATABASE_PATH`, default empty |
 | Journal mode | WAL |
 | Foreign keys | `PRAGMA foreign_keys=ON` after open |
-| Tables | `user`, `widget`, `transaction`, `wallet`, `api_key` |
+| Tables | `user`, `widget`, `transaction`, `wallet`, `api_key`, `webhook`, `notification_channel`, `notification_delivery` |
 | Schema owner | `internal/database/sqlite.go` |
-| Migrations | None. `CREATE TABLE IF NOT EXISTS` on every start |
+| Migrations | Automatic. `CREATE TABLE IF NOT EXISTS` plus idempotent `ALTER TABLE` on every start |
 
 The schema supports multiple users, but the application serves one user. `GetUser()` reads the first row with `LIMIT 1`. The startup code creates one admin when the table is empty. All widgets, transactions, wallets, and API keys belong to that user.
 
@@ -28,6 +28,8 @@ erDiagram
     user ||--o{ transaction : "owns"
     user ||--o| wallet : "configures"
     user ||--o{ api_key : "creates"
+    user ||--o{ webhook : "registers"
+    user ||--o{ notification_channel : "configures"
     widget o|--o{ transaction : "receives"
 
     user {
@@ -55,6 +57,12 @@ erDiagram
         TEXT thank_you_message "Rendered after confirmation"
         TEXT primary_color "Hex color"
         TEXT redirect_url "Optional payment redirect"
+        INTEGER confirmations "Per-widget override, -1 means global"
+        REAL price_fiat "Fiat price for payment mode, 0 means XMR"
+        TEXT price_currency "Fiat currency code"
+        REAL goal_amount "Optional donation goal"
+        TEXT goal_currency "Goal currency, XMR or fiat"
+        INTEGER goal_deadline "Optional goal end date"
         INTEGER created_at "Unix seconds"
         INTEGER updated_at "Unix seconds"
     }
@@ -69,9 +77,16 @@ erDiagram
         INTEGER received_amount "Piconero received"
         REAL fiat_amount "Snapshot at creation"
         TEXT fiat_currency "Currency code"
-        TEXT status "Lifecycle state"
+        TEXT status "Lifecycle state (pending, mempool, confirming, partial, confirmed, reverted, expired)"
         INTEGER confirmations "Current count"
         INTEGER is_payment "Boolean 0 or 1"
+        TEXT description "Merchant-facing label"
+        TEXT redirect_url "Per-transaction redirect"
+        TEXT callback_url "Reserved for a per-transaction callback"
+        TEXT metadata "JSON supplied by the API caller"
+        INTEGER confirmations_required "Per-row override, -1 means global"
+        INTEGER is_test "Excluded from stats and export"
+        INTEGER reverted_at "Unix seconds, 0 before a revert"
         TEXT donor_name "Optional visitor name"
         TEXT note "Optional visitor note"
         TEXT tx_hash "Monero transaction hash"
@@ -159,7 +174,7 @@ The application reads this table with `SELECT ... FROM user LIMIT 1`. Most pages
 | `received_amount` | INTEGER | No | `0` | Total received in piconero. `0` before a transfer is seen |
 | `fiat_amount` | REAL | Yes | NULL | Fiat value at creation. `0` for an open-amount donation |
 | `fiat_currency` | TEXT | Yes | NULL | Currency code, for example `USD` |
-| `status` | TEXT | No | `pending` | `pending`, `mempool`, `confirming`, `underpaid`, `confirmed`, or `expired` |
+| `status` | TEXT | No | `pending` | `pending`, `mempool`, `confirming`, `partial`, `confirmed`, `reverted`, or `expired` |
 | `confirmations` | INTEGER | Yes | `0` | Last observed confirmation count |
 | `is_payment` | INTEGER | No | `0` | Boolean. Copied from the widget mode at creation |
 | `donor_name` | TEXT | Yes | NULL | Optional visitor name. Donation mode only |
@@ -273,7 +288,7 @@ Unit conversion:
 | Transaction created | New row with status `pending`, `expires_at` set |
 | Payment detected | `status`, `confirmations`, `received_amount`, `tx_hash`, and `updated_at` change |
 | Confirmation reached | `status` becomes `confirmed`, `confirmed_at` gets the current time |
-| Expiry reached | `status` becomes `expired` for rows in `pending` or `underpaid` |
+| Expiry reached | `status` becomes `expired` for rows in `pending` or `partial` |
 | Widget deleted | `transaction.widget_id` becomes NULL, transaction rows remain |
 | API key expires | Row remains, the authenticator rejects the key |
 | Admin deletes an API key | Row removed |
@@ -357,3 +372,28 @@ A transaction from that widget:
 - [Flows](./flows.md)
 - [System architecture](./architecture.md)
 - [Documentation index](./README.md)
+
+## 8. Notification tables
+
+| Table | Purpose |
+|---|---|
+| `webhook` | One row per HTTP endpoint. `secret_enc` holds an AES-256-GCM ciphertext, not a hash, because HMAC signing needs the raw value |
+| `notification_channel` | One row per chat or email destination. `config_enc` holds an encrypted JSON document with the provider credentials |
+| `notification_delivery` | The outbox. One row per delivery attempt chain, with `status`, `attempts`, `response_code`, `last_error`, and `next_retry_at` |
+
+A delivery is enqueued when a transaction changes state. The worker reads due rows every five seconds, sends them, and updates the row. Delivered rows older than seven days are deleted. Failed rows stay for inspection.
+
+Both endpoint tables store `events` as a comma-separated list. `database.Subscribes` reads it. The valid values are the `Event*` constants in `internal/database/models.go`.
+
+## 9. Status values
+
+| Status | Terminal | Meaning |
+|---|---|---|
+| `pending` | No | No transfer seen |
+| `partial` | No | A transfer arrived but the total is below the request |
+| `mempool` | No | The total covers the request, no confirmation yet |
+| `confirming` | No | Confirmations are between 1 and the required count |
+| `confirmed` | Yes | The required confirmations are reached |
+| `reverted` | No | A 0-conf payment left the mempool inside the revert window |
+| `expired` | Yes | The request closed. `received_amount` shows what arrived, if anything |
+

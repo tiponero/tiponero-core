@@ -1,0 +1,72 @@
+# Optional full stack: monerod + monero-wallet-rpc + tiponero.
+#
+# This file is a convenience for a first install. It does not change the
+# architecture: each service stays an independent system with its own data
+# volume, and Tiponero still talks to the wallet over JSON-RPC.
+#
+# Use it only when you do not already run a Monero node:
+#
+#   cp .env.example .env
+#   docker compose -f docker-compose.full.yml up -d
+#
+# Then open http://localhost:8080/admin, log in, and use
+# Settings > Create a View-Only Wallet. That step creates the wallet file
+# inside the wallet-rpc container. Tiponero never stores your view key.
+#
+# Mainnet sync takes hours and about 60 GB with pruning. For a quick test,
+# add --stagenet to monerod and the wallet RPC and use stagenet ports.
+
+services:
+  monerod:
+    image: ghcr.io/sethforprivacy/simple-monerod:latest
+    restart: unless-stopped
+    command:
+      - --rpc-restricted-bind-ip=0.0.0.0
+      - --rpc-restricted-bind-port=18089
+      - --rpc-bind-ip=0.0.0.0
+      - --confirm-external-bind
+      - --prune-blockchain
+      - --no-igm
+      - --enable-dns-blocklist
+    volumes:
+      - monerod-data:/home/monero/.bitmonero
+    ports:
+      # Restricted RPC only. Never publish port 18081 to the internet.
+      - "127.0.0.1:18089:18089"
+
+  wallet-rpc:
+    image: ghcr.io/sethforprivacy/simple-monero-wallet-rpc:latest
+    restart: unless-stopped
+    depends_on:
+      - monerod
+    command:
+      - --rpc-bind-ip=0.0.0.0
+      - --rpc-bind-port=18088
+      - --confirm-external-bind
+      - --daemon-address=monerod:18081
+      - --wallet-dir=/wallet
+      - --rpc-login=tiponero:change-this-rpc-password
+    volumes:
+      - wallet-data:/wallet
+    # No host port. Only the tiponero container reaches this service.
+
+  tiponero:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - wallet-rpc
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      DATABASE_PATH: /data/tiponero.db
+      # The RPC URL uses the compose service name, not localhost.
+      # Set the rest of the wallet settings in the admin panel.
+    volumes:
+      - tiponero-data:/data
+
+volumes:
+  monerod-data:
+  wallet-data:
+  tiponero-data:

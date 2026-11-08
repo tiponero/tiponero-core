@@ -7,9 +7,13 @@ import (
 
 func (db *DB) CreateWidget(w *Widget) error {
 	return db.conn.QueryRow(
-		`INSERT INTO widget (user_id, name, mode, preset_amounts, button_text, custom_message, thank_you_message, primary_color, theme, show_stats, redirect_url, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-		w.UserID, w.Name, w.Mode, nullStr(w.PresetAmounts), w.ButtonText, w.CustomMessage, w.ThankYouMessage, w.PrimaryColor, w.Theme, w.ShowStats, nullStr(w.RedirectURL), w.CreatedAt, w.UpdatedAt,
+		`INSERT INTO widget (user_id, name, mode, preset_amounts, button_text, custom_message, thank_you_message,
+		 primary_color, theme, show_stats, redirect_url, confirmations, price_fiat, price_currency,
+		 goal_amount, goal_currency, goal_deadline, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+		w.UserID, w.Name, w.Mode, nullStr(w.PresetAmounts), w.ButtonText, w.CustomMessage, w.ThankYouMessage,
+		w.PrimaryColor, w.Theme, w.ShowStats, nullStr(w.RedirectURL), w.Confirmations, w.PriceFiat, w.PriceCurrency,
+		w.GoalAmount, w.GoalCurrency, w.GoalDeadline, w.CreatedAt, w.UpdatedAt,
 	).Scan(&w.ID)
 }
 
@@ -26,7 +30,7 @@ func (db *DB) ListWidgets(userID string) ([]Widget, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var widgets []Widget
 	for rows.Next() {
@@ -34,7 +38,10 @@ func (db *DB) ListWidgets(userID string) ([]Widget, error) {
 		var presetAmounts, redirectURL sql.NullString
 		err := rows.Scan(
 			&w.ID, &w.UserID, &w.Name, &w.Mode, &presetAmounts,
-			&w.ButtonText, &w.CustomMessage, &w.ThankYouMessage, &w.PrimaryColor, &w.Theme, &w.ShowStats, &redirectURL, &w.CreatedAt, &w.UpdatedAt,
+			&w.ButtonText, &w.CustomMessage, &w.ThankYouMessage, &w.PrimaryColor, &w.Theme, &w.ShowStats, &redirectURL,
+			&w.Confirmations, &w.PriceFiat, &w.PriceCurrency,
+			&w.GoalAmount, &w.GoalCurrency, &w.GoalDeadline,
+			&w.CreatedAt, &w.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -55,23 +62,31 @@ func (db *DB) UpdateWidget(w *Widget) error {
 	w.UpdatedAt = time.Now().Unix()
 	_, err := db.conn.Exec(
 		`UPDATE widget SET name = ?, mode = ?, preset_amounts = ?, button_text = ?, custom_message = ?,
-		 thank_you_message = ?, primary_color = ?, theme = ?, show_stats = ?, redirect_url = ?, updated_at = ?
+		 thank_you_message = ?, primary_color = ?, theme = ?, show_stats = ?, redirect_url = ?,
+		 confirmations = ?, price_fiat = ?, price_currency = ?, goal_amount = ?, goal_currency = ?, goal_deadline = ?,
+		 updated_at = ?
 		 WHERE id = ? AND user_id = ?`,
 		w.Name, w.Mode, nullStr(w.PresetAmounts), w.ButtonText, w.CustomMessage,
-		w.ThankYouMessage, w.PrimaryColor, w.Theme, w.ShowStats, nullStr(w.RedirectURL), w.UpdatedAt,
-		w.ID, w.UserID,
+		w.ThankYouMessage, w.PrimaryColor, w.Theme, w.ShowStats, nullStr(w.RedirectURL),
+		w.Confirmations, w.PriceFiat, w.PriceCurrency, w.GoalAmount, w.GoalCurrency, w.GoalDeadline,
+		w.UpdatedAt, w.ID, w.UserID,
 	)
 	return err
 }
 
-const widgetColumns = `id, user_id, name, mode, preset_amounts, button_text, custom_message, thank_you_message, primary_color, theme, show_stats, redirect_url, created_at, updated_at`
+const widgetColumns = `id, user_id, name, mode, preset_amounts, button_text, custom_message, thank_you_message,
+	primary_color, theme, show_stats, redirect_url, confirmations, price_fiat, price_currency,
+	goal_amount, goal_currency, goal_deadline, created_at, updated_at`
 
 func (db *DB) scanWidget(row *sql.Row) (*Widget, error) {
 	w := &Widget{}
 	var presetAmounts, redirectURL sql.NullString
 	err := row.Scan(
 		&w.ID, &w.UserID, &w.Name, &w.Mode, &presetAmounts,
-		&w.ButtonText, &w.CustomMessage, &w.ThankYouMessage, &w.PrimaryColor, &w.Theme, &w.ShowStats, &redirectURL, &w.CreatedAt, &w.UpdatedAt,
+		&w.ButtonText, &w.CustomMessage, &w.ThankYouMessage, &w.PrimaryColor, &w.Theme, &w.ShowStats, &redirectURL,
+		&w.Confirmations, &w.PriceFiat, &w.PriceCurrency,
+		&w.GoalAmount, &w.GoalCurrency, &w.GoalDeadline,
+		&w.CreatedAt, &w.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err

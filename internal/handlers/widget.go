@@ -1,9 +1,6 @@
 package handlers
 
 import (
-	"crypto/rand"
-	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +18,8 @@ import (
 
 type PriceConverter interface {
 	ConvertXMRToFiat(int64) float64
+	ConvertXMRToFiatIn(int64, string) (float64, error)
+	ConvertFiatToPiconero(float64, string) (int64, float64, error)
 	Currency() string
 }
 
@@ -28,14 +27,26 @@ type WidgetHandler struct {
 	db                    *database.DB
 	wallet                *monero.ClientHolder
 	price                 PriceConverter
+	dispatcher            *services.Dispatcher
 	log                   zerolog.Logger
 	hostURL               string
 	requiredConfirmations int
 	transactionExpiry     time.Duration
+	mockPayments          bool
 }
 
-func NewWidgetHandler(db *database.DB, wallet *monero.ClientHolder, price PriceConverter, hostURL string, requiredConfirmations int, transactionExpiry time.Duration, log zerolog.Logger) *WidgetHandler {
-	return &WidgetHandler{db: db, wallet: wallet, price: price, hostURL: hostURL, requiredConfirmations: requiredConfirmations, transactionExpiry: transactionExpiry, log: log.With().Str("component", "widget").Logger()}
+func NewWidgetHandler(d Deps) *WidgetHandler {
+	return &WidgetHandler{
+		db:                    d.DB,
+		wallet:                d.Wallet,
+		price:                 d.Price,
+		dispatcher:            d.Dispatcher,
+		hostURL:               d.HostURL,
+		requiredConfirmations: d.RequiredConfirmations,
+		transactionExpiry:     d.TransactionExpiry,
+		log:                   d.Log.With().Str("component", "widget").Logger(),
+		mockPayments:          d.MockPayments,
+	}
 }
 
 func (h *WidgetHandler) Home(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +65,8 @@ func (h *WidgetHandler) Home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render(r.Context(), w, widgetviews.Home(widget, user), h.log)
+	goalReached, goalTarget := h.goalProgress(widget)
+	render(r.Context(), w, widgetviews.Home(widget, user, goalReached, goalTarget), h.log)
 }
 
 func (h *WidgetHandler) CreateTransaction(w http.ResponseWriter, r *http.Request) {
@@ -73,71 +85,75 @@ func (h *WidgetHandler) CreateTransaction(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	rawAmount := r.FormValue("custom_amount")
-	if rawAmount == "" {
-		rawAmount = r.FormValue("amount")
-	}
 	amountRequested := int64(0)
+	fiatAmount := 0.0
+	fiatCurrency := ""
+
 	if widget.Mode == database.ModePayment {
-		preset, ok := widgetPaymentAmount(widget)
-		if !ok {
-			h.log.Error().Str("widget_id", widgetID).Msg("payment widget has no valid preset amount")
-			render(r.Context(), w, widgetviews.Error(widget, "This payment widget is not configured correctly."), h.log)
-			return
+		switch {
+		case widget.PriceFiat > 0:
+			// The widget price is fiat. Lock the rate now so the payer sees
+			// the same number the merchant asked for.
+			currency := widget.PriceCurrency
+			if currency == "" {
+				currency = h.price.Currency()
+			}
+			piconero, _, err := h.price.ConvertFiatToPiconero(widget.PriceFiat, currency)
+			if err != nil {
+				h.log.Error().Err(err).Msg("failed to convert widget fiat price")
+				render(r.Context(), w, widgetviews.Error(widget, "The price is not available right now. Please try again later."), h.log)
+				return
+			}
+			amountRequested = piconero
+			fiatAmount = widget.PriceFiat
+			fiatCurrency = currency
+		default:
+			preset, ok := widgetPaymentAmount(widget)
+			if !ok {
+				h.log.Error().Str("widget_id", widgetID).Msg("payment widget has no valid preset amount")
+				render(r.Context(), w, widgetviews.Error(widget, "This payment widget is not configured correctly."), h.log)
+				return
+			}
+			amountRequested = preset
+			fiatAmount = h.price.ConvertXMRToFiat(preset)
+			fiatCurrency = h.price.Currency()
 		}
-		amountRequested = preset
 	} else {
 		amountRequested = parseXMRToPiconero(r.FormValue("amount"), r.FormValue("custom_amount"))
-		if rawAmount != "" && amountRequested == 0 {
-			h.log.Warn().Str("raw_amount", rawAmount).Msg("unparseable amount, treating as open donation")
+		if amountRequested > 0 {
+			fiatAmount = h.price.ConvertXMRToFiat(amountRequested)
+			fiatCurrency = h.price.Currency()
 		}
 	}
 
-	labelBytes := make([]byte, 16)
-	_, _ = rand.Read(labelBytes)
-	txLabel := fmt.Sprintf("tx-%s", hex.EncodeToString(labelBytes))
-	address, addrIndex, err := h.wallet.Get().CreateAddress(txLabel)
+	required := widgetRequiredConfirmations(widget, h.requiredConfirmations)
+
+	tx, err := createPayment(h.db, h.wallet, paymentRequest{
+		UserID:                user.ID,
+		Widget:                widget,
+		Amount:                amountRequested,
+		FiatAmount:            fiatAmount,
+		FiatCurrency:          fiatCurrency,
+		IsPayment:             widget.Mode == database.ModePayment,
+		DonorName:             r.FormValue("donor_name"),
+		Note:                  r.FormValue("note"),
+		ConfirmationsRequired: required,
+		Expiry:                h.transactionExpiry,
+	})
 	if err != nil {
-		if errors.Is(err, monero.ErrNotConfigured) {
+		if errors.Is(err, errWalletUnavailable) {
 			h.log.Warn().Msg("transaction attempt but wallet RPC is not configured")
 			render(r.Context(), w, widgetviews.Error(widget, "Payments are not available yet. The wallet has not been configured."), h.log)
 		} else {
-			h.log.Error().Err(err).Msg("wallet RPC: create_address failed")
+			h.log.Error().Err(err).Msg("failed to create transaction")
 			render(r.Context(), w, widgetviews.Error(widget, "Wallet is currently unavailable. Please try again later."), h.log)
 		}
 		return
 	}
 
-	isPayment := widget.Mode == database.ModePayment
+	h.dispatcher.EmitAsync(tx, database.EventPaymentCreated, required)
 
-	now := time.Now()
-	tx := &database.Transaction{
-		UserID:          user.ID,
-		WidgetID:        sql.NullString{String: widget.ID, Valid: true},
-		Subaddress:      address,
-		SubaddressIndex: addrIndex,
-		Amount:          amountRequested,
-		Status:          database.StatusPending,
-		IsPayment:       isPayment,
-		DonorName:       r.FormValue("donor_name"),
-		Note:            r.FormValue("note"),
-		CreatedAt:       now.Unix(),
-		UpdatedAt:       now.Unix(),
-		ExpiresAt:       now.Add(h.transactionExpiry).Unix(),
-	}
-
-	if amountRequested > 0 {
-		tx.FiatAmount = h.price.ConvertXMRToFiat(amountRequested)
-		tx.FiatCurrency = h.price.Currency()
-	}
-
-	if err := h.db.CreateTransaction(tx); err != nil {
-		h.log.Error().Err(err).Msg("failed to persist transaction")
-		http.Error(w, "Failed to create transaction", http.StatusInternalServerError)
-		return
-	}
-
-	render(r.Context(), w, widgetviews.Payment(tx, widget, h.requiredConfirmations), h.log)
+	render(r.Context(), w, widgetviews.Payment(tx, widget, required), h.log)
 }
 
 func (h *WidgetHandler) TransactionStatus(w http.ResponseWriter, r *http.Request) {
@@ -156,12 +172,16 @@ func (h *WidgetHandler) TransactionStatus(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if tx.Status == database.StatusConfirmed && widget.RedirectURL != "" {
-		w.Header().Set("HX-Redirect", widget.RedirectURL)
+	redirect := widget.RedirectURL
+	if tx.RedirectURL != "" {
+		redirect = tx.RedirectURL
+	}
+	if tx.Status == database.StatusConfirmed && redirect != "" {
+		w.Header().Set("HX-Redirect", redirect)
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	render(r.Context(), w, widgetviews.Status(tx, h.requiredConfirmations, widget.ThankYouMessage), h.log)
+	render(r.Context(), w, widgetviews.Status(tx, requiredConfirmationsFor(tx, h.requiredConfirmations), widget.ThankYouMessage), h.log)
 }
 
 func (h *WidgetHandler) QRCode(w http.ResponseWriter, r *http.Request) {
@@ -173,7 +193,12 @@ func (h *WidgetHandler) QRCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	png, err := services.GenerateQRCode(tx.Subaddress, tx.Amount)
+	amount := tx.Amount
+	if tx.Status == database.StatusPartial {
+		amount = remainingAmount(tx)
+	}
+
+	png, err := services.GenerateQRCode(tx.Subaddress, amount)
 	if err != nil {
 		h.log.Error().Err(err).Str("transaction_id", donationID).Msg("failed to generate QR code")
 		http.Error(w, "Failed to generate QR code", http.StatusInternalServerError)
@@ -224,6 +249,29 @@ func (h *WidgetHandler) Badge(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// goalProgress converts a donation goal into piconero so the widget can draw a
+// progress bar. A goal in fiat uses the current rate.
+func (h *WidgetHandler) goalProgress(widget *database.Widget) (int64, int64) {
+	if widget.GoalAmount <= 0 {
+		return 0, 0
+	}
+
+	target := int64(widget.GoalAmount * 1e12)
+	if widget.GoalCurrency != "" && widget.GoalCurrency != "XMR" {
+		converted, _, err := h.price.ConvertFiatToPiconero(widget.GoalAmount, widget.GoalCurrency)
+		if err != nil {
+			return 0, 0
+		}
+		target = converted
+	}
+
+	reached, err := h.db.GetWidgetConfirmedTotal(widget.ID)
+	if err != nil {
+		return 0, target
+	}
+	return reached, target
+}
+
 func parseXMRToPiconero(amount, customAmount string) int64 {
 	raw := customAmount
 	if raw == "" {
@@ -254,4 +302,74 @@ func widgetPaymentAmount(w *database.Widget) (int64, bool) {
 		return 0, false
 	}
 	return int64(piconero), true
+}
+
+// standaloneWidget builds presentation defaults for a transaction that has no
+// widget. It is never stored.
+func standaloneWidget(tx *database.Transaction) *database.Widget {
+	thankYou := "Thank you for your donation!"
+	if tx.IsPayment {
+		thankYou = "Thank you for your payment!"
+	}
+	return &database.Widget{
+		ID:              tx.ID,
+		Mode:            database.ModeDonation,
+		Theme:           database.ThemeSystem,
+		PrimaryColor:    "#ff6600",
+		RedirectURL:     tx.RedirectURL,
+		ThankYouMessage: thankYou,
+	}
+}
+
+func (h *WidgetHandler) StandalonePayment(w http.ResponseWriter, r *http.Request) {
+	tx, err := h.db.GetTransaction(r.PathValue("transactionID"))
+	if err != nil {
+		http.Error(w, "Payment not found", http.StatusNotFound)
+		return
+	}
+
+	required := requiredConfirmationsFor(tx, h.requiredConfirmations)
+	render(r.Context(), w, widgetviews.Payment(tx, standaloneWidget(tx), required), h.log)
+}
+
+func (h *WidgetHandler) StandaloneStatus(w http.ResponseWriter, r *http.Request) {
+	tx, err := h.db.GetTransaction(r.PathValue("transactionID"))
+	if err != nil {
+		http.Error(w, "Payment not found", http.StatusNotFound)
+		return
+	}
+
+	if tx.Status == database.StatusConfirmed && tx.RedirectURL != "" {
+		w.Header().Set("HX-Redirect", tx.RedirectURL)
+	}
+
+	required := requiredConfirmationsFor(tx, h.requiredConfirmations)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	render(r.Context(), w, widgetviews.Status(tx, required, standaloneWidget(tx).ThankYouMessage), h.log)
+}
+
+func (h *WidgetHandler) StandaloneQRCode(w http.ResponseWriter, r *http.Request) {
+	tx, err := h.db.GetTransaction(r.PathValue("transactionID"))
+	if err != nil {
+		http.Error(w, "Payment not found", http.StatusNotFound)
+		return
+	}
+
+	amount := tx.Amount
+	if tx.Status == database.StatusPartial {
+		amount = remainingAmount(tx)
+	}
+
+	png, err := services.GenerateQRCode(tx.Subaddress, amount)
+	if err != nil {
+		h.log.Error().Err(err).Str("transaction_id", tx.ID).Msg("failed to generate QR code")
+		http.Error(w, "Failed to generate QR code", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	if _, err = w.Write(png); err != nil {
+		h.log.Error().Err(err).Str("transaction_id", tx.ID).Msg("failed to write QR code response")
+	}
 }

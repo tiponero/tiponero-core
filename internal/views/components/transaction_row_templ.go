@@ -234,8 +234,8 @@ func StatusBadge(status database.TransactionStatus) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-		case database.StatusUnderpaid:
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<span class=\"inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono uppercase tracking-widest bg-error-container/10 text-error\"><span class=\"material-symbols-outlined text-xs\">error_outline</span> Underpaid</span>")
+		case database.StatusPartial:
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<span class=\"inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono uppercase tracking-widest bg-error-container/10 text-error\"><span class=\"material-symbols-outlined text-xs\">error_outline</span> Partial</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -244,8 +244,13 @@ func StatusBadge(status database.TransactionStatus) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
+		case database.StatusReverted:
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<span class=\"inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono uppercase tracking-widest bg-error-container/10 text-error\"><span class=\"material-symbols-outlined text-xs\">undo</span> Reverted</span>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 		case database.StatusExpired:
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<span class=\"inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono uppercase tracking-widest bg-monero-gray/30 text-on-surface-variant/60\"><span class=\"material-symbols-outlined text-xs\">cancel</span> Expired</span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "<span class=\"inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono uppercase tracking-widest bg-monero-gray/30 text-on-surface-variant/60\"><span class=\"material-symbols-outlined text-xs\">cancel</span> Expired</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

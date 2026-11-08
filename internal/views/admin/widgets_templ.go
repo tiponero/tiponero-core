@@ -9,14 +9,45 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"encoding/json"
 	"fmt"
+	"sort"
+	"time"
+
 	"github.com/tiponero/tiponero-core/internal/database"
 	"github.com/tiponero/tiponero-core/internal/monero"
+	"github.com/tiponero/tiponero-core/internal/services"
 	"github.com/tiponero/tiponero-core/internal/views/components"
 	"github.com/tiponero/tiponero-core/internal/views/layouts"
 )
 
-func Widgets(widgets []database.Widget, hostURL string, rpcStatus monero.ConnectionStatus) templ.Component {
+// confirmationOptions lists the confirmation counts the admin panel offers.
+// The global default is always present so it can be preselected.
+func confirmationOptions(global int) []int {
+	options := []int{0, 1, 2, 3, 5, 10, 15, 20, 30, 60}
+	found := false
+	for _, n := range options {
+		if n == global {
+			found = true
+			break
+		}
+	}
+	if !found {
+		options = append(options, global)
+		sort.Ints(options)
+	}
+	return options
+}
+
+// effectiveConfirmations turns the stored -1 into the global default.
+func effectiveConfirmations(stored, global int) int {
+	if stored < 0 {
+		return global
+	}
+	return stored
+}
+
+func Widgets(widgets []database.Widget, hostURL string, rpcStatus monero.ConnectionStatus, globalConfirmations int) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -53,7 +84,7 @@ func Widgets(widgets []database.Widget, hostURL string, rpcStatus monero.Connect
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, " <script>\n\t\t\t(function() {\n\t\t\t\tvar p = new URLSearchParams(window.location.search);\n\t\t\t\tvar t = p.get('toast');\n\t\t\t\tif (t) {\n\t\t\t\t\thistory.replaceState(null, '', window.location.pathname);\n\t\t\t\t\tdocument.addEventListener('alpine:initialized', function() {\n\t\t\t\t\t\tif (t === 'created') Alpine.store('toast').show('success', 'Widget created.');\n\t\t\t\t\t\tif (t === 'deleted') Alpine.store('toast').show('success', 'Widget deleted.');\n\t\t\t\t\t}, { once: true });\n\t\t\t\t\tif (window.Alpine && Alpine.store('toast')) {\n\t\t\t\t\t\tif (t === 'created') Alpine.store('toast').show('success', 'Widget created.');\n\t\t\t\t\t\tif (t === 'deleted') Alpine.store('toast').show('success', 'Widget deleted.');\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t})();\n\t\t</script> <div class=\"grid grid-cols-1 lg:grid-cols-12 gap-8\"><div class=\"lg:col-span-5\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, " <script>\n\t\t\t(function() {\n\t\t\t\tvar p = new URLSearchParams(window.location.search);\n\t\t\t\tvar t = p.get('toast');\n\t\t\t\tif (t) {\n\t\t\t\t\thistory.replaceState(null, '', window.location.pathname);\n\t\t\t\t\tdocument.addEventListener('alpine:initialized', function() {\n\t\t\t\t\t\tif (t === 'created') Alpine.store('toast').show('success', 'Widget created.');\n\t\t\t\t\t\tif (t === 'deleted') Alpine.store('toast').show('success', 'Widget deleted.');\n\t\t\t\t\t\tif (t === 'updated') Alpine.store('toast').show('success', 'Widget updated.');\n\t\t\t\t\t}, { once: true });\n\t\t\t\t}\n\t\t\t})();\n\t\t</script> <div class=\"space-y-8\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -69,39 +100,95 @@ func Widgets(widgets []database.Widget, hostURL string, rpcStatus monero.Connect
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<form method=\"POST\" action=\"/admin/widgets\" class=\"space-y-5\" x-data=\"{ mode: 'donation', presets: [0.01, 0.05, 0.1], newPreset: '', paymentPrice: '', addPreset() { var v = parseFloat(this.newPreset); if (!isNaN(v) && v > 0 && this.presets.indexOf(v) === -1) { this.presets.push(v); this.newPreset = ''; } }, removePreset(i) { this.presets.splice(i, 1); }, presetsJSON() { if (this.mode === 'payment') { var p = parseFloat(this.paymentPrice); return !isNaN(p) && p > 0 ? JSON.stringify([p]) : ''; } return this.presets.length > 0 ? JSON.stringify(this.presets) : ''; } }\" @submit=\"$refs.preset_amounts_input.value = presetsJSON()\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<form method=\"POST\" action=\"/admin/widgets\" class=\"space-y-5\" x-data=\"{\n\t\t\t\t\t\tmode: 'donation',\n\t\t\t\t\t\tpresets: [0.01, 0.05, 0.1],\n\t\t\t\t\t\tnewPreset: '',\n\t\t\t\t\t\taddPreset() {\n\t\t\t\t\t\t\tvar v = parseFloat(this.newPreset);\n\t\t\t\t\t\t\tif (!isNaN(v) && v > 0 && this.presets.indexOf(v) === -1) {\n\t\t\t\t\t\t\t\tthis.presets.push(v);\n\t\t\t\t\t\t\t\tthis.newPreset = '';\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t},\n\t\t\t\t\t\tremovePreset(i) { this.presets.splice(i, 1); },\n\t\t\t\t\t\tpresetsJSON() { return this.presets.length > 0 ? JSON.stringify(this.presets) : ''; }\n\t\t\t\t\t}\" @submit=\"$refs.preset_amounts_input.value = presetsJSON()\"><div class=\"grid grid-cols-1 md:grid-cols-2 gap-5\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.FormField("name", "Widget Name", "text", "", "Blog Sidebar", templ.Attributes{"required": true}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.FormField("name", "Name", "text", "", "Blog sidebar", templ.Attributes{"required": true}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"space-y-1.5\"><label class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Mode</label><div class=\"grid grid-cols-2 gap-2\"><button type=\"button\" @click=\"mode = 'donation'\" :class=\"mode === 'donation' ? 'bg-primary-container/20 text-primary-container ring-1 ring-primary-container/30' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-bright'\" class=\"py-2.5 rounded-md text-sm font-mono font-medium transition-all text-center\">Donation</button> <button type=\"button\" @click=\"mode = 'payment'\" :class=\"mode === 'payment' ? 'bg-primary-container/20 text-primary-container ring-1 ring-primary-container/30' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-bright'\" class=\"py-2.5 rounded-md text-sm font-mono font-medium transition-all text-center\">Payment</button></div><input type=\"hidden\" name=\"mode\" x-bind:value=\"mode\"></div><div x-show=\"mode === 'donation'\" class=\"space-y-1.5\"><label class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Preset Amounts (XMR)</label><div class=\"flex gap-2\"><input type=\"number\" x-model=\"newPreset\" step=\"0.000000000001\" min=\"0.000000000001\" placeholder=\"0.25\" @keydown.enter.prevent=\"addPreset()\" class=\"flex-1 bg-surface-container-highest border-none text-on-surface p-3 font-mono text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30\"> <button type=\"button\" @click=\"addPreset()\" class=\"px-4 bg-surface-container-high text-on-surface-variant hover:bg-surface-bright text-xs font-mono uppercase tracking-widest rounded-md transition-colors\">Add</button></div><div class=\"flex flex-wrap gap-2\" x-show=\"presets.length > 0\"><template x-for=\"(preset, index) in presets\" :key=\"index\"><span class=\"inline-flex items-center gap-1 bg-primary-container/10 text-primary-container text-xs font-mono px-2 py-1 rounded-md\"><span x-text=\"preset\"></span> <button type=\"button\" @click=\"removePreset(index)\" class=\"text-error text-base leading-none ml-0.5 hover:brightness-125 transition-colors cursor-pointer\">&times;</button></span></template></div></div><div x-show=\"mode === 'payment'\" x-cloak class=\"space-y-1.5\"><label for=\"payment_price\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Price (XMR)</label> <input type=\"number\" id=\"payment_price\" step=\"0.000000000001\" min=\"0.000000000001\" placeholder=\"0.05\" x-model=\"paymentPrice\" x-bind:required=\"mode === 'payment'\" class=\"w-full bg-surface-container-highest border-none text-on-surface p-3 font-mono text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30\"></div><input type=\"hidden\" name=\"preset_amounts\" x-ref=\"preset_amounts_input\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"space-y-1.5\"><label class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Mode</label><div class=\"grid grid-cols-2 gap-2\"><button type=\"button\" @click=\"mode = 'donation'\" :class=\"mode === 'donation' ? 'bg-primary-container/20 text-primary-container ring-1 ring-primary-container/30' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-bright'\" class=\"py-2.5 rounded-md text-sm font-mono font-medium transition-all text-center\">Donation</button> <button type=\"button\" @click=\"mode = 'payment'\" :class=\"mode === 'payment' ? 'bg-primary-container/20 text-primary-container ring-1 ring-primary-container/30' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-bright'\" class=\"py-2.5 rounded-md text-sm font-mono font-medium transition-all text-center\">Payment</button></div><input type=\"hidden\" name=\"mode\" x-bind:value=\"mode\"></div></div><div x-show=\"mode === 'donation'\" class=\"space-y-1.5\"><label class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Preset amounts</label><div class=\"flex gap-2\"><input type=\"number\" x-model=\"newPreset\" step=\"0.000000000001\" min=\"0.000000000001\" placeholder=\"0.25\" @keydown.enter.prevent=\"addPreset()\" class=\"flex-1 bg-surface-container-highest border-none text-on-surface p-3 font-mono text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30\"> <button type=\"button\" @click=\"addPreset()\" class=\"px-4 bg-surface-container-high text-on-surface-variant hover:bg-surface-bright text-xs font-mono uppercase tracking-widest rounded-md transition-colors\">Add</button></div><div class=\"flex flex-wrap gap-2\" x-show=\"presets.length > 0\"><template x-for=\"(preset, index) in presets\" :key=\"index\"><span class=\"inline-flex items-center gap-1 bg-primary-container/10 text-primary-container text-xs font-mono px-2 py-1 rounded-md\"><span x-text=\"preset\"></span> <button type=\"button\" @click=\"removePreset(index)\" class=\"text-error text-base leading-none ml-0.5 hover:brightness-125 transition-colors cursor-pointer\">&times;</button></span></template></div><input type=\"hidden\" name=\"preset_amounts\" x-ref=\"preset_amounts_input\"></div><div x-show=\"mode === 'payment'\" x-cloak class=\"grid grid-cols-1 md:grid-cols-3 gap-5\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.FormField("button_text", "Button Text", "text", "Donate", "", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.FormField("payment_price", "Price XMR", "number", "", "0.05", templ.Attributes{"step": "0.000000000001", "min": "0"}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.FormField("custom_message", "Custom Message", "text", "Your support is appreciated!", "", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.FormField("price_fiat", "Price fiat", "number", "", "0.00", templ.Attributes{"step": "0.01", "min": "0"}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.FormField("thank_you_message", "Thank You Message", "text", "", "Thank you for your donation!", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div class=\"space-y-1.5\"><label for=\"price_currency\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Currency</label>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div class=\"space-y-1.5\"><label for=\"redirect_url\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Redirect URL (optional)</label> <input type=\"url\" id=\"redirect_url\" name=\"redirect_url\" placeholder=\"https://example.com/thank-you\" class=\"w-full bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30\"></div><div class=\"grid grid-cols-1 sm:grid-cols-2 gap-4\"><div class=\"space-y-1.5\"><label for=\"primary_color\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Accent Color</label><div class=\"space-y-2 p-2 bg-surface-container-highest rounded-md\" x-data=\"{ color: '#ff6600' }\"><div class=\"flex gap-2 items-center\"><button type=\"button\" @click=\"color = '#FF6600'\" :class=\"color === '#FF6600' ? 'ring-2 ring-white/70 ring-offset-2 ring-offset-surface-container-highest' : ''\" class=\"w-8 h-8 rounded-md bg-[#FF6600] transition-all shrink-0\"></button> <button type=\"button\" @click=\"color = '#009cfc'\" :class=\"color === '#009cfc' ? 'ring-2 ring-white/70 ring-offset-2 ring-offset-surface-container-highest' : ''\" class=\"w-8 h-8 rounded-md bg-[#009cfc] transition-all shrink-0\"></button> <button type=\"button\" @click=\"color = '#9ccaff'\" :class=\"color === '#9ccaff' ? 'ring-2 ring-white/70 ring-offset-2 ring-offset-surface-container-highest' : ''\" class=\"w-8 h-8 rounded-md bg-[#9ccaff] transition-all shrink-0\"></button> <button type=\"button\" @click=\"color = '#ffb4ab'\" :class=\"color === '#ffb4ab' ? 'ring-2 ring-white/70 ring-offset-2 ring-offset-surface-container-highest' : ''\" class=\"w-8 h-8 rounded-md bg-[#ffb4ab] transition-all shrink-0\"></button></div><div class=\"flex items-center gap-2\"><input type=\"color\" x-model=\"color\" class=\"w-8 h-8 rounded-md cursor-pointer bg-transparent border-none p-0 shrink-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch]:border-none [&::-moz-color-swatch]:rounded-md [&::-moz-color-swatch]:border-none\"> <input type=\"text\" x-model=\"color\" maxlength=\"7\" pattern=\"^#[0-9a-fA-F]{6}$\" class=\"flex-1 bg-surface-container-high border-none text-on-surface-variant font-mono text-xs p-1.5 rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 uppercase\"></div><input type=\"hidden\" name=\"primary_color\" x-bind:value=\"color\"></div></div><div class=\"space-y-1.5\"><label for=\"theme\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Theme</label> <select id=\"theme\" name=\"theme\" class=\"w-full bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 appearance-none\"><option value=\"system\">System Default</option> <option value=\"light\">Light</option> <option value=\"dark\">Dark</option></select></div></div><div class=\"flex items-center gap-3\"><input type=\"checkbox\" id=\"show_stats\" name=\"show_stats\" checked class=\"rounded-md border-outline-variant bg-surface-container-highest text-primary-container focus:ring-primary/30\"> <label for=\"show_stats\" class=\"text-sm font-body text-on-surface-variant\">Show stats on badge</label></div>")
+				templ_7745c5c3_Err = currencySelect("price_currency", "price_currency", "", false).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.PrimaryButton("Create Widget", true).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div></div><div class=\"grid grid-cols-1 md:grid-cols-2 gap-5\"><div class=\"space-y-1.5\"><label for=\"confirmations\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Confirmations</label>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</form>")
+				templ_7745c5c3_Err = confirmationsSelect("confirmations", "confirmations", globalConfirmations, globalConfirmations).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = components.FormField("redirect_url", "Redirect URL", "url", "", "https://example.com/thank-you", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</div><div x-show=\"mode === 'donation'\" x-cloak class=\"grid grid-cols-1 md:grid-cols-3 gap-5\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = components.FormField("goal_amount", "Goal", "number", "", "0.00", templ.Attributes{"step": "0.01", "min": "0"}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<div class=\"space-y-1.5\"><label for=\"goal_currency\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Goal currency</label>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = currencySelect("goal_currency", "goal_currency", "XMR", true).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div><div class=\"space-y-1.5\"><label for=\"goal_deadline\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Goal deadline</label> <input type=\"date\" id=\"goal_deadline\" name=\"goal_deadline\" class=\"w-full bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30\"></div></div><div class=\"grid grid-cols-1 md:grid-cols-2 gap-5\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = components.FormField("button_text", "Button text", "text", "Donate", "", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = components.FormField("custom_message", "Custom message", "text", "Your support is appreciated!", "", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = components.FormField("thank_you_message", "Thank you message", "text", "", "Thank you for your donation!", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<div class=\"grid grid-cols-1 md:grid-cols-2 gap-5\"><div class=\"space-y-1.5\"><label for=\"primary_color\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Accent color</label><div class=\"space-y-2 p-2 bg-surface-container-highest rounded-md\" x-data=\"{ color: '#ff6600' }\"><div class=\"flex gap-2 items-center\"><button type=\"button\" @click=\"color = '#FF6600'\" :class=\"color === '#FF6600' ? 'ring-2 ring-white/70 ring-offset-2 ring-offset-surface-container-highest' : ''\" class=\"w-8 h-8 rounded-md bg-[#FF6600] transition-all shrink-0\"></button> <button type=\"button\" @click=\"color = '#009cfc'\" :class=\"color === '#009cfc' ? 'ring-2 ring-white/70 ring-offset-2 ring-offset-surface-container-highest' : ''\" class=\"w-8 h-8 rounded-md bg-[#009cfc] transition-all shrink-0\"></button> <button type=\"button\" @click=\"color = '#9ccaff'\" :class=\"color === '#9ccaff' ? 'ring-2 ring-white/70 ring-offset-2 ring-offset-surface-container-highest' : ''\" class=\"w-8 h-8 rounded-md bg-[#9ccaff] transition-all shrink-0\"></button> <button type=\"button\" @click=\"color = '#ffb4ab'\" :class=\"color === '#ffb4ab' ? 'ring-2 ring-white/70 ring-offset-2 ring-offset-surface-container-highest' : ''\" class=\"w-8 h-8 rounded-md bg-[#ffb4ab] transition-all shrink-0\"></button></div><div class=\"flex items-center gap-2\"><input type=\"color\" x-model=\"color\" class=\"w-8 h-8 rounded-md cursor-pointer bg-transparent border-none p-0 shrink-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch]:border-none [&::-moz-color-swatch]:rounded-md [&::-moz-color-swatch]:border-none\"> <input type=\"text\" x-model=\"color\" maxlength=\"7\" pattern=\"^#[0-9a-fA-F]{6}$\" class=\"flex-1 bg-surface-container-high border-none text-on-surface-variant font-mono text-xs p-1.5 rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 uppercase\"></div><input type=\"hidden\" name=\"primary_color\" x-bind:value=\"color\"></div></div><div class=\"space-y-1.5\"><label for=\"theme\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Theme</label> <select id=\"theme\" name=\"theme\" class=\"w-full bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 appearance-none\"><option value=\"system\">System</option> <option value=\"light\">Light</option> <option value=\"dark\">Dark</option></select></div></div><div class=\"flex items-center justify-between gap-4 pt-2\"><label class=\"flex items-center gap-2 text-sm font-body text-on-surface-variant\"><input type=\"checkbox\" id=\"show_stats\" name=\"show_stats\" checked class=\"rounded-md border-outline-variant bg-surface-container-highest text-primary-container focus:ring-primary/30\"> Show stats on badge</label>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = components.PrimaryButton("Create Widget", false).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</div></form>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -111,31 +198,31 @@ func Widgets(widgets []database.Widget, hostURL string, rpcStatus monero.Connect
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</div><div class=\"lg:col-span-7 space-y-6\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<div class=\"space-y-6\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if len(widgets) == 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"bg-surface-container-lowest rounded-xl\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<div class=\"bg-surface-container-lowest rounded-xl\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.EmptyState("widgets", "No widgets yet. Create your first widget to start accepting payments.").Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.EmptyState("widgets", "No widgets yet.").Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
 			for _, w := range widgets {
-				templ_7745c5c3_Err = widgetCard(w, hostURL).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widgetCard(w, hostURL, globalConfirmations).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -149,7 +236,7 @@ func Widgets(widgets []database.Widget, hostURL string, rpcStatus monero.Connect
 	})
 }
 
-func widgetCard(w database.Widget, hostURL string) templ.Component {
+func confirmationsSelect(id, name string, selected, global int) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -170,87 +257,313 @@ func widgetCard(w database.Widget, hostURL string) templ.Component {
 			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div x-data=\"{ open: false, confirmDelete: false, copied: false, copyText(ref) { var t = this.$refs[ref].textContent.trim(); var self = this; var fallback = function() { var ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); self.copied = ref; setTimeout(function(){ self.copied = false }, 2000) }; if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(t).then(function() { self.copied = ref; setTimeout(function(){ self.copied = false }, 2000) }).catch(fallback) } else { fallback() } } }\" class=\"bg-surface-container-lowest border-l-4 border-tertiary group transition-all hover:bg-monero-gray/20\"><div class=\"flex items-center justify-between p-6\"><div class=\"flex items-center gap-4 cursor-pointer flex-1 min-w-0\" @click=\"open = !open\"><span class=\"material-symbols-outlined text-on-surface-variant text-lg transition-transform\" :class=\"open && 'rotate-90'\">chevron_right</span><div class=\"min-w-0\"><h4 class=\"font-headline text-lg font-bold text-on-surface truncate\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<select id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var5 string
-		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(w.Name)
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 184, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 198, Col: 16}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</h4><p class=\"text-xs text-on-surface-variant truncate font-body\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\" name=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 string
-		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(w.CustomMessage)
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 185, Col: 84}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 198, Col: 30}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</p></div></div><div class=\"flex items-center gap-3 ml-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\" class=\"w-full bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 appearance-none\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		for _, n := range confirmationOptions(global) {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<option value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var7 string
+			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%d", n))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 200, Col: 39}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if n == selected {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, " selected")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, ">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var8 string
+			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", n))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 200, Col: 92}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</option>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</select>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func currencySelect(id, name, selected string, includeXMR bool) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var9 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var9 == nil {
+			templ_7745c5c3_Var9 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<select id=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var10 string
+		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue(id)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 206, Col: 16}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "\" name=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var11 string
+		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(name)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 206, Col: 30}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "\" class=\"w-full bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 appearance-none\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if includeXMR {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<option value=\"XMR\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if selected == "XMR" {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, " selected")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, ">XMR</option> ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		for _, c := range services.SupportedCurrencies {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "<option value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var12 string
+			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(c)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 211, Col: 20}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if c == selected {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, " selected")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, ">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var13 string
+			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(c)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 211, Col: 54}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</option>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</select>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func widgetCard(w database.Widget, hostURL string, globalConfirmations int) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var14 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var14 == nil {
+			templ_7745c5c3_Var14 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "<div x-data=\"{ open: false, confirmDelete: false, copied: false, copyText(ref) { var t = this.$refs[ref].textContent.trim(); var self = this; var fallback = function() { var ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); self.copied = ref; setTimeout(function(){ self.copied = false }, 2000) }; if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(t).then(function() { self.copied = ref; setTimeout(function(){ self.copied = false }, 2000) }).catch(fallback) } else { fallback() } } }\" class=\"bg-surface-container-lowest border-l-4 border-tertiary group transition-all hover:bg-monero-gray/20\"><div class=\"flex items-center justify-between p-6\"><div class=\"flex items-center gap-4 cursor-pointer flex-1 min-w-0\" @click=\"open = !open\"><span class=\"material-symbols-outlined text-on-surface-variant text-lg transition-transform\" :class=\"open && 'rotate-90'\">chevron_right</span><div class=\"min-w-0\"><h4 class=\"font-headline text-lg font-bold text-on-surface truncate\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var15 string
+		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(w.Name)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 225, Col: 82}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "</h4><p class=\"text-xs text-on-surface-variant truncate font-body\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var16 string
+		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(w.CustomMessage)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 226, Col: 84}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "</p></div></div><div class=\"flex items-center gap-3 ml-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if w.Mode == database.ModePayment {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<span class=\"inline-flex items-center gap-1 bg-primary-container/10 text-primary-container text-xs font-mono px-2 py-0.5 rounded-md uppercase\"><span class=\"material-symbols-outlined text-xs\">payment</span> Payment</span> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<span class=\"inline-flex items-center gap-1 bg-primary-container/10 text-primary-container text-xs font-mono px-2 py-0.5 rounded-md uppercase\"><span class=\"material-symbols-outlined text-xs\">payment</span> Payment</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<span class=\"inline-flex items-center gap-1 bg-primary-container/10 text-primary-container text-xs font-mono px-2 py-0.5 rounded-md uppercase\"><span class=\"material-symbols-outlined text-xs\">volunteer_activism</span> Donation</span> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "<span class=\"inline-flex items-center gap-1 bg-primary-container/10 text-primary-container text-xs font-mono px-2 py-0.5 rounded-md uppercase\"><span class=\"material-symbols-outlined text-xs\">volunteer_activism</span> Donation</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<span class=\"bg-primary-container/10 text-primary-container text-xs font-mono px-2 py-0.5 rounded-md uppercase\">Active</span><div class=\"flex items-center gap-1\"><template x-if=\"!confirmDelete\"><button type=\"button\" @click=\"confirmDelete = true\" class=\"flex items-center gap-1 text-error text-xs font-mono uppercase tracking-widest hover:bg-error-container/20 px-2 py-1 rounded-md transition-colors\"><span class=\"material-symbols-outlined text-sm\">delete</span> Delete</button></template><template x-if=\"confirmDelete\"><div class=\"flex items-center gap-1\"><span class=\"text-on-surface-variant text-xs font-mono leading-none\">Sure?</span> <button type=\"button\" @click=\"confirmDelete = false\" class=\"text-on-surface-variant text-xs font-mono uppercase tracking-widest leading-none hover:bg-surface-container-high px-2 py-1 rounded-md transition-colors\">Cancel</button><form class=\"flex\" method=\"POST\" action=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<div class=\"flex items-center gap-1\"><template x-if=\"!confirmDelete\"><button type=\"button\" @click=\"confirmDelete = true\" class=\"flex items-center gap-1 text-error text-xs font-mono uppercase tracking-widest hover:bg-error-container/20 px-2 py-1 rounded-md transition-colors\"><span class=\"material-symbols-outlined text-sm\">delete</span> Delete</button></template><template x-if=\"confirmDelete\"><div class=\"flex items-center gap-1\"><span class=\"text-on-surface-variant text-xs font-mono leading-none\">Sure?</span> <button type=\"button\" @click=\"confirmDelete = false\" class=\"text-on-surface-variant text-xs font-mono uppercase tracking-widest leading-none hover:bg-surface-container-high px-2 py-1 rounded-md transition-colors\">Cancel</button><form class=\"flex\" method=\"POST\" action=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var7 templ.SafeURL
-		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/admin/widgets/%s/delete", w.ID)))
+		var templ_7745c5c3_Var17 templ.SafeURL
+		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/admin/widgets/%s/delete", w.ID)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 214, Col: 109}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 252, Col: 109}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\"><button type=\"submit\" class=\"text-error text-xs font-mono uppercase tracking-widest leading-none hover:bg-error-container/20 px-2 py-1 rounded-md transition-colors font-bold\">Delete</button></form></div></template></div></div></div><div x-show=\"open\" x-cloak x-transition class=\"p-6 pt-0 space-y-6\"><div class=\"rounded-lg overflow-hidden bg-surface-container-high\"><iframe src=\"")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var8 string
-		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/widget/%s", w.ID))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 227, Col: 42}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "\"><button type=\"submit\" class=\"text-error text-xs font-mono uppercase tracking-widest leading-none hover:bg-error-container/20 px-2 py-1 rounded-md transition-colors font-bold\">Delete</button></form></div></template></div></div></div><div x-show=\"open\" x-cloak x-transition class=\"p-6 pt-0 space-y-6\"><div class=\"grid grid-cols-1 xl:grid-cols-2 gap-6\"><div class=\"rounded-lg overflow-hidden bg-surface-container-high\"><iframe src=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\" width=\"100%\" height=\"480\" frameborder=\"0\" sandbox=\"allow-same-origin allow-scripts\" class=\"bg-surface\" onload=\"this.contentWindow.postMessage({prefersDark:true},'*')\"></iframe></div><img src=\"")
+		var templ_7745c5c3_Var18 string
+		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/widget/%s", w.ID))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 264, Col: 43}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var9 string
-		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/widget/%s/badge.svg", w.ID))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 237, Col: 51}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "\" width=\"100%\" height=\"480\" frameborder=\"0\" sandbox=\"allow-same-origin allow-scripts\" class=\"bg-surface\" onload=\"this.contentWindow.postMessage({prefersDark:true},'*')\"></iframe></div><div class=\"space-y-4\"><img src=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\" alt=\"Widget badge\" class=\"rounded-md max-w-full h-auto\"> <details class=\"group/details\"><summary class=\"flex cursor-pointer items-center justify-between rounded-md px-4 py-3 text-xs font-mono uppercase tracking-widest text-on-surface-variant bg-surface-container-high hover:bg-surface-bright transition-colors\"><span class=\"flex items-center gap-2\"><span class=\"material-symbols-outlined text-sm\">code</span> Widget Embed</span> <span class=\"material-symbols-outlined text-sm transition-transform group-open/details:rotate-180\">expand_more</span></summary><div class=\"mt-3 space-y-3\">")
+		var templ_7745c5c3_Var19 string
+		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/widget/%s/badge.svg", w.ID))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 274, Col: 57}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "\" alt=\"Widget badge\" class=\"rounded-md max-w-full h-auto\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = widgetEditForm(w, globalConfirmations).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "</div></div><details class=\"group/details\"><summary class=\"flex cursor-pointer items-center justify-between rounded-md px-4 py-3 text-xs font-mono uppercase tracking-widest text-on-surface-variant bg-surface-container-high hover:bg-surface-bright transition-colors\"><span class=\"flex items-center gap-2\"><span class=\"material-symbols-outlined text-sm\">code</span> Widget Embed</span> <span class=\"material-symbols-outlined text-sm transition-transform group-open/details:rotate-180\">expand_more</span></summary><div class=\"mt-3 space-y-3\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -262,7 +575,7 @@ func widgetCard(w database.Widget, hostURL string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</div></details> <details class=\"group/details\"><summary class=\"flex cursor-pointer items-center justify-between rounded-md px-4 py-3 text-xs font-mono uppercase tracking-widest text-on-surface-variant bg-surface-container-high hover:bg-surface-bright transition-colors\"><span class=\"flex items-center gap-2\"><span class=\"material-symbols-outlined text-sm\">badge</span> Badge Embed</span> <span class=\"material-symbols-outlined text-sm transition-transform group-open/details:rotate-180\">expand_more</span></summary><div class=\"mt-3 space-y-3\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "</div></details> <details class=\"group/details\"><summary class=\"flex cursor-pointer items-center justify-between rounded-md px-4 py-3 text-xs font-mono uppercase tracking-widest text-on-surface-variant bg-surface-container-high hover:bg-surface-bright transition-colors\"><span class=\"flex items-center gap-2\"><span class=\"material-symbols-outlined text-sm\">badge</span> Badge Embed</span> <span class=\"material-symbols-outlined text-sm transition-transform group-open/details:rotate-180\">expand_more</span></summary><div class=\"mt-3 space-y-3\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -274,7 +587,7 @@ func widgetCard(w database.Widget, hostURL string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</div></details></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "</div></details></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -298,95 +611,485 @@ func copyBox(label string, refName string, value string) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var10 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var10 == nil {
-			templ_7745c5c3_Var10 = templ.NopComponent
+		templ_7745c5c3_Var20 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var20 == nil {
+			templ_7745c5c3_Var20 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<div class=\"bg-surface-container-lowest rounded-md p-4\"><div class=\"flex items-center justify-between mb-2\"><p class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "<div class=\"bg-surface-container-lowest rounded-md p-4\"><div class=\"flex items-center justify-between mb-2\"><p class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var11 string
-		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(label)
+		var templ_7745c5c3_Var21 string
+		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 274, Col: 89}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 311, Col: 89}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</p><button type=\"button\" x-on:click=\"")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var12 string
-		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("copyText('%s')", refName))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 277, Col: 55}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "</p><button type=\"button\" x-on:click=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "\" class=\"text-xs font-mono uppercase tracking-widest px-2 py-1 rounded-md transition-colors\" x-bind:class=\"")
+		var templ_7745c5c3_Var22 string
+		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("copyText('%s')", refName))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 314, Col: 55}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var22)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var13 string
-		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("copied === '%s' ? 'bg-primary-container/10 text-primary-container' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-bright'", refName))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 279, Col: 187}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "\" class=\"text-xs font-mono uppercase tracking-widest px-2 py-1 rounded-md transition-colors\" x-bind:class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "\" x-text=\"")
+		var templ_7745c5c3_Var23 string
+		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("copied === '%s' ? 'bg-primary-container/10 text-primary-container' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-bright'", refName))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 316, Col: 187}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var23)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var14 string
-		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("copied === '%s' ? 'Copied!' : 'Copy'", refName))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 280, Col: 73}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "\" x-text=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "\"></button></div><code x-ref=\"")
+		var templ_7745c5c3_Var24 string
+		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("copied === '%s' ? 'Copied!' : 'Copy'", refName))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 317, Col: 73}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var24)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var15 string
-		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(refName)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 283, Col: 23}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "\">Copy</button></div><code x-ref=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "\" class=\"text-xs font-mono text-on-surface-variant/80 break-all select-all block\">")
+		var templ_7745c5c3_Var25 string
+		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.ResolveAttributeValue(refName)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 320, Col: 23}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var25)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var16 string
-		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(value)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 284, Col: 10}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "\" class=\"block text-xs font-mono text-on-surface-variant break-all select-all\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</code></div>")
+		var templ_7745c5c3_Var26 string
+		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(value)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 320, Col: 110}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "</code></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		return nil
 	})
+}
+
+func widgetEditForm(w database.Widget, globalConfirmations int) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var27 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var27 == nil {
+			templ_7745c5c3_Var27 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "<details class=\"bg-surface-container-high/40 rounded-md\"><summary class=\"cursor-pointer px-4 py-3 text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Edit widget</summary><form method=\"POST\" action=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var28 templ.SafeURL
+		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/admin/widgets/%s/update", w.ID)))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 327, Col: 91}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "\" class=\"p-4 pt-0 space-y-4\" x-data=\"{ mode: 'donation' }\" x-init=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var29 string
+		templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("mode = '%s'", string(w.Mode)))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 327, Col: 202}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var29)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "\"><div class=\"grid grid-cols-1 md:grid-cols-2 gap-4\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = components.FormFieldNamed("name-"+w.ID, "name", "Name", "text", w.Name, "Blog sidebar", templ.Attributes{"required": true}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "<div class=\"space-y-1.5\"><label for=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var30 string
+		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.ResolveAttributeValue("mode-" + w.ID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 331, Col: 32}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var30)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Mode</label> <select id=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var31 string
+		templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.ResolveAttributeValue("mode-" + w.ID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 332, Col: 32}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var31)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "\" name=\"mode\" x-model=\"mode\" class=\"w-full bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 appearance-none\"><option value=\"donation\">Donation</option> <option value=\"payment\">Payment</option></select></div></div><div x-show=\"mode === 'donation'\" x-cloak class=\"space-y-1.5\"><label for=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var32 string
+		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.ResolveAttributeValue("presets-" + w.ID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 340, Col: 34}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var32)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Preset amounts</label> <input type=\"text\" id=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var33 string
+		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.ResolveAttributeValue("presets-" + w.ID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 341, Col: 45}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var33)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "\" name=\"preset_amounts\" value=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var34 string
+		templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.ResolveAttributeValue(w.PresetAmounts)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 341, Col: 93}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var34)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "\" placeholder=\"[0.01,0.05,0.1]\" class=\"w-full bg-surface-container-highest border-none text-on-surface p-3 font-mono text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30\"></div><div x-show=\"mode === 'payment'\" x-cloak class=\"grid grid-cols-1 md:grid-cols-3 gap-4\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = components.FormFieldNamed("payment_price-"+w.ID, "payment_price", "Price XMR", "number", presetValue(w.PresetAmounts), "0.05", templ.Attributes{"step": "0.000000000001", "min": "0"}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = components.FormFieldNamed("price_fiat-"+w.ID, "price_fiat", "Price fiat", "number", floatValue(w.PriceFiat), "0.00", templ.Attributes{"step": "0.01", "min": "0"}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "<div class=\"space-y-1.5\"><label for=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var35 string
+		templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.ResolveAttributeValue("price_currency-" + w.ID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 348, Col: 42}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var35)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Currency</label>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = currencySelect("price_currency-"+w.ID, "price_currency", w.PriceCurrency, false).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "</div></div><div class=\"grid grid-cols-1 md:grid-cols-2 gap-4\"><div class=\"space-y-1.5\"><label for=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var36 string
+		templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.ResolveAttributeValue("confirmations-" + w.ID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 355, Col: 41}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var36)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Confirmations</label>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = confirmationsSelect("confirmations-"+w.ID, "confirmations", effectiveConfirmations(w.Confirmations, globalConfirmations), globalConfirmations).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "</div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = components.FormFieldNamed("redirect_url-"+w.ID, "redirect_url", "Redirect URL", "url", w.RedirectURL, "https://example.com/thank-you", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "</div><div x-show=\"mode === 'donation'\" x-cloak class=\"grid grid-cols-1 md:grid-cols-3 gap-4\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = components.FormFieldNamed("goal_amount-"+w.ID, "goal_amount", "Goal", "number", floatValue(w.GoalAmount), "0.00", templ.Attributes{"step": "0.01", "min": "0"}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "<div class=\"space-y-1.5\"><label for=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var37 string
+		templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.ResolveAttributeValue("goal_currency-" + w.ID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 364, Col: 41}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var37)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Goal currency</label>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = currencySelect("goal_currency-"+w.ID, "goal_currency", goalCurrency(w), true).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "</div><div class=\"space-y-1.5\"><label for=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var38 string
+		templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.ResolveAttributeValue("goal_deadline-" + w.ID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 368, Col: 41}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var38)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Goal deadline</label> <input type=\"date\" id=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var39 string
+		templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.ResolveAttributeValue("goal_deadline-" + w.ID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 369, Col: 52}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var39)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "\" name=\"goal_deadline\" value=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var40 string
+		templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.ResolveAttributeValue(dateValue(w.GoalDeadline))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 369, Col: 109}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var40)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "\" class=\"w-full bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30\"></div></div><div class=\"grid grid-cols-1 md:grid-cols-2 gap-4\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = components.FormFieldNamed("button_text-"+w.ID, "button_text", "Button text", "text", w.ButtonText, "Donate", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = components.FormFieldNamed("custom_message-"+w.ID, "custom_message", "Custom message", "text", w.CustomMessage, "Your support is appreciated!", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "</div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = components.FormFieldNamed("thank_you_message-"+w.ID, "thank_you_message", "Thank you message", "text", w.ThankYouMessage, "Thank you!", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "<div class=\"grid grid-cols-1 md:grid-cols-2 gap-4\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = components.FormFieldNamed("primary_color-"+w.ID, "primary_color", "Accent color", "text", w.PrimaryColor, "#ff6600", templ.Attributes{"pattern": "^#[0-9a-fA-F]{6}$"}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "<div class=\"space-y-1.5\"><label for=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var41 string
+		templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.ResolveAttributeValue("theme-" + w.ID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 382, Col: 33}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var41)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Theme</label> <select id=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var42 string
+		templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue("theme-" + w.ID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 383, Col: 33}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "\" name=\"theme\" class=\"w-full bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 appearance-none\"><option value=\"system\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if w.Theme == database.ThemeSystem {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, " selected")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, ">System</option> <option value=\"light\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if w.Theme == database.ThemeLight {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, " selected")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, ">Light</option> <option value=\"dark\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if w.Theme == database.ThemeDark {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, " selected")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, ">Dark</option></select></div></div><div class=\"flex items-center justify-between gap-4\"><label class=\"flex items-center gap-2 text-sm font-body text-on-surface-variant\"><input type=\"checkbox\" name=\"show_stats\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if w.ShowStats {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 89, " checked")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, " class=\"rounded-md border-outline-variant bg-surface-container-highest text-primary-container focus:ring-primary/30\"> Show stats on badge</label>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = components.PrimaryButton("Save changes", false).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 91, "</div></form></details>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// presetValue returns the single XMR preset for the payment price field.
+func presetValue(raw string) string {
+	var amounts []float64
+	if err := json.Unmarshal([]byte(raw), &amounts); err != nil || len(amounts) != 1 {
+		return ""
+	}
+	return fmt.Sprintf("%g", amounts[0])
+}
+
+func goalCurrency(w database.Widget) string {
+	if w.GoalCurrency == "" {
+		return "XMR"
+	}
+	return w.GoalCurrency
+}
+
+func floatValue(v float64) string {
+	if v == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%g", v)
+}
+
+func dateValue(unix int64) string {
+	if unix == 0 {
+		return ""
+	}
+	return time.Unix(unix, 0).Format("2006-01-02")
 }
 
 var _ = templruntime.GeneratedTemplate

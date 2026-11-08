@@ -22,7 +22,7 @@ type Client struct {
 }
 
 func NewClient(url, username, password string) *Client {
-	c := &Client{url: strings.TrimRight(url, "/"), http: &http.Client{Timeout: rpcTimeout}}
+	c := &Client{url: NormalizeRPCURL(url), http: &http.Client{Timeout: rpcTimeout}}
 	if username != "" {
 		c.http.Transport = &digest.Transport{
 			Username: username,
@@ -69,6 +69,16 @@ func (c *Client) URL() string {
 	return c.url
 }
 
+// NormalizeRPCURL accepts both "http://host:port" and
+// "http://host:port/json_rpc". The client always appends /json_rpc, so the
+// suffix is removed when the operator pastes a full endpoint.
+func NormalizeRPCURL(raw string) string {
+	u := strings.TrimSpace(raw)
+	u = strings.TrimRight(u, "/")
+	u = strings.TrimSuffix(u, "/json_rpc")
+	return strings.TrimRight(u, "/")
+}
+
 func (c *Client) call(method string, params any, result any) error {
 	if c.url == "" {
 		return ErrNotConfigured
@@ -94,7 +104,7 @@ func (c *Client) call(method string, params any, result any) error {
 	if err != nil {
 		return fmt.Errorf("rpc call %s: %w", method, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var envelope rpcResponse[json.RawMessage]
 	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
@@ -105,4 +115,14 @@ func (c *Client) call(method string, params any, result any) error {
 	}
 
 	return json.Unmarshal(envelope.Result, result)
+}
+
+// GenerateFromKeys creates a wallet file inside the wallet-rpc wallet
+// directory. With no spend key the result is a view-only wallet, which is the
+// only kind Tiponero creates.
+func (c *Client) GenerateFromKeys(p GenerateFromKeysParams) error {
+	var result struct {
+		Address string `json:"address"`
+	}
+	return c.call("generate_from_keys", p, &result)
 }

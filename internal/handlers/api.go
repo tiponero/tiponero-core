@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -11,28 +12,41 @@ import (
 	"github.com/tiponero/tiponero-core/internal/auth"
 	"github.com/tiponero/tiponero-core/internal/database"
 	"github.com/tiponero/tiponero-core/internal/monero"
+	"github.com/tiponero/tiponero-core/internal/services"
 )
 
 type APIHandler struct {
-	db           *database.DB
-	wallet       *monero.ClientHolder
-	walletEncKey []byte
-	log          zerolog.Logger
+	db                    *database.DB
+	wallet                *monero.ClientHolder
+	price                 PriceConverter
+	dispatcher            *services.Dispatcher
+	walletEncKey          []byte
+	notifyEncKey          []byte
+	log                   zerolog.Logger
+	hostURL               string
+	requiredConfirmations int
+	transactionExpiry     time.Duration
 }
 
-func NewAPIHandler(db *database.DB, wallet *monero.ClientHolder, walletEncKey []byte, log zerolog.Logger) *APIHandler {
+func NewAPIHandler(d Deps) *APIHandler {
 	return &APIHandler{
-		db:           db,
-		wallet:       wallet,
-		walletEncKey: walletEncKey,
-		log:          log.With().Str("component", "api").Logger(),
+		db:                    d.DB,
+		wallet:                d.Wallet,
+		price:                 d.Price,
+		dispatcher:            d.Dispatcher,
+		walletEncKey:          d.WalletEncKey,
+		notifyEncKey:          d.NotifyEncKey,
+		log:                   d.Log.With().Str("component", "api").Logger(),
+		hostURL:               d.HostURL,
+		requiredConfirmations: d.RequiredConfirmations,
+		transactionExpiry:     d.TransactionExpiry,
 	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	_ = json.NewEncoder(w).Encode(v)
 }
 
 func apiError(w http.ResponseWriter, status int, message string) {
@@ -40,7 +54,7 @@ func apiError(w http.ResponseWriter, status int, message string) {
 }
 
 func decodeJSON(r *http.Request, v any) error {
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 	return json.NewDecoder(r.Body).Decode(v)
 }
 
@@ -56,6 +70,12 @@ type widgetJSON struct {
 	Theme           string    `json:"theme"`
 	ShowStats       bool      `json:"show_stats"`
 	RedirectURL     string    `json:"redirect_url"`
+	Confirmations   int       `json:"confirmations"`
+	PriceFiat       float64   `json:"price_fiat"`
+	PriceCurrency   string    `json:"price_currency"`
+	GoalAmount      float64   `json:"goal_amount"`
+	GoalCurrency    string    `json:"goal_currency"`
+	GoalDeadline    int64     `json:"goal_deadline"`
 	CreatedAt       int64     `json:"created_at"`
 	UpdatedAt       int64     `json:"updated_at"`
 }
@@ -63,7 +83,7 @@ type widgetJSON struct {
 func toWidgetJSON(w *database.Widget) widgetJSON {
 	var presets []float64
 	if w.PresetAmounts != "" {
-		json.Unmarshal([]byte(w.PresetAmounts), &presets)
+		_ = json.Unmarshal([]byte(w.PresetAmounts), &presets)
 	}
 	if presets == nil {
 		presets = []float64{}
@@ -80,31 +100,42 @@ func toWidgetJSON(w *database.Widget) widgetJSON {
 		Theme:           string(w.Theme),
 		ShowStats:       w.ShowStats,
 		RedirectURL:     w.RedirectURL,
+		Confirmations:   w.Confirmations,
+		PriceFiat:       w.PriceFiat,
+		PriceCurrency:   w.PriceCurrency,
+		GoalAmount:      w.GoalAmount,
+		GoalCurrency:    w.GoalCurrency,
+		GoalDeadline:    w.GoalDeadline,
 		CreatedAt:       w.CreatedAt,
 		UpdatedAt:       w.UpdatedAt,
 	}
 }
 
 type transactionJSON struct {
-	ID                string  `json:"id"`
-	WidgetID          string  `json:"widget_id"`
-	Subaddress        string  `json:"subaddress"`
-	Amount            int64   `json:"amount"`
-	AmountXMR         string  `json:"amount_xmr"`
-	ReceivedAmount    int64   `json:"received_amount"`
-	ReceivedAmountXMR string  `json:"received_amount_xmr"`
-	FiatAmount        float64 `json:"fiat_amount"`
-	FiatCurrency      string  `json:"fiat_currency"`
-	Status            string  `json:"status"`
-	Confirmations     int     `json:"confirmations"`
-	IsPayment         bool    `json:"is_payment"`
-	DonorName         string  `json:"donor_name"`
-	Note              string  `json:"note"`
-	TxHash            string  `json:"tx_hash"`
-	CreatedAt         int64   `json:"created_at"`
-	UpdatedAt         int64   `json:"updated_at"`
-	ConfirmedAt       int64   `json:"confirmed_at"`
-	ExpiresAt         int64   `json:"expires_at"`
+	ID                    string  `json:"id"`
+	WidgetID              string  `json:"widget_id"`
+	Subaddress            string  `json:"subaddress"`
+	Amount                int64   `json:"amount"`
+	AmountXMR             string  `json:"amount_xmr"`
+	ReceivedAmount        int64   `json:"received_amount"`
+	ReceivedAmountXMR     string  `json:"received_amount_xmr"`
+	FiatAmount            float64 `json:"fiat_amount"`
+	FiatCurrency          string  `json:"fiat_currency"`
+	Status                string  `json:"status"`
+	Confirmations         int     `json:"confirmations"`
+	IsPayment             bool    `json:"is_payment"`
+	DonorName             string  `json:"donor_name"`
+	Note                  string  `json:"note"`
+	TxHash                string  `json:"tx_hash"`
+	Description           string  `json:"description"`
+	RedirectURL           string  `json:"redirect_url"`
+	ConfirmationsRequired int     `json:"confirmations_required"`
+	RemainingAmount       int64   `json:"remaining_amount"`
+	IsTest                bool    `json:"is_test"`
+	CreatedAt             int64   `json:"created_at"`
+	UpdatedAt             int64   `json:"updated_at"`
+	ConfirmedAt           int64   `json:"confirmed_at"`
+	ExpiresAt             int64   `json:"expires_at"`
 }
 
 func toTransactionJSON(t *database.Transaction) transactionJSON {
@@ -115,25 +146,30 @@ func toTransactionJSON(t *database.Transaction) transactionJSON {
 	}
 	receivedXMR := strconv.FormatFloat(float64(received)/1e12, 'f', -1, 64)
 	return transactionJSON{
-		ID:                t.ID,
-		WidgetID:          t.WidgetID.String,
-		Subaddress:        t.Subaddress,
-		Amount:            t.Amount,
-		AmountXMR:         xmr,
-		ReceivedAmount:    received,
-		ReceivedAmountXMR: receivedXMR,
-		FiatAmount:        t.FiatAmount,
-		FiatCurrency:      t.FiatCurrency,
-		Status:            string(t.Status),
-		Confirmations:     t.Confirmations,
-		IsPayment:         t.IsPayment,
-		DonorName:         t.DonorName,
-		Note:              t.Note,
-		TxHash:            t.TxHash,
-		CreatedAt:         t.CreatedAt,
-		UpdatedAt:         t.UpdatedAt,
-		ConfirmedAt:       t.ConfirmedAt,
-		ExpiresAt:         t.ExpiresAt,
+		ID:                    t.ID,
+		WidgetID:              t.WidgetID.String,
+		Subaddress:            t.Subaddress,
+		Amount:                t.Amount,
+		AmountXMR:             xmr,
+		ReceivedAmount:        received,
+		ReceivedAmountXMR:     receivedXMR,
+		FiatAmount:            t.FiatAmount,
+		FiatCurrency:          t.FiatCurrency,
+		Status:                string(t.Status),
+		Confirmations:         t.Confirmations,
+		IsPayment:             t.IsPayment,
+		DonorName:             t.DonorName,
+		Note:                  t.Note,
+		TxHash:                t.TxHash,
+		Description:           t.Description,
+		RedirectURL:           t.RedirectURL,
+		ConfirmationsRequired: t.ConfirmationsRequired,
+		RemainingAmount:       remainingAmount(t),
+		IsTest:                t.IsTest,
+		CreatedAt:             t.CreatedAt,
+		UpdatedAt:             t.UpdatedAt,
+		ConfirmedAt:           t.ConfirmedAt,
+		ExpiresAt:             t.ExpiresAt,
 	}
 }
 
@@ -255,6 +291,12 @@ func (h *APIHandler) CreateWidget(w http.ResponseWriter, r *http.Request) {
 		Theme           string    `json:"theme"`
 		ShowStats       *bool     `json:"show_stats"`
 		RedirectURL     string    `json:"redirect_url"`
+		Confirmations   *int      `json:"confirmations"`
+		PriceFiat       float64   `json:"price_fiat"`
+		PriceCurrency   string    `json:"price_currency"`
+		GoalAmount      float64   `json:"goal_amount"`
+		GoalCurrency    string    `json:"goal_currency"`
+		GoalDeadline    int64     `json:"goal_deadline"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		apiError(w, http.StatusBadRequest, "invalid JSON body")
@@ -278,6 +320,40 @@ func (h *APIHandler) CreateWidget(w http.ResponseWriter, r *http.Request) {
 		PrimaryColor:    body.PrimaryColor,
 		Theme:           parseTheme(body.Theme),
 		RedirectURL:     body.RedirectURL,
+		Confirmations:   -1,
+		PriceFiat:       body.PriceFiat,
+		PriceCurrency:   body.PriceCurrency,
+		GoalAmount:      body.GoalAmount,
+		GoalCurrency:    body.GoalCurrency,
+		GoalDeadline:    body.GoalDeadline,
+	}
+
+	if body.Confirmations != nil {
+		widget.Confirmations = parseConfirmations(strconv.Itoa(*body.Confirmations))
+	}
+	widget.PriceCurrency = strings.ToUpper(strings.TrimSpace(widget.PriceCurrency))
+	if widget.PriceFiat > 0 {
+		if widget.PriceCurrency == "" {
+			widget.PriceCurrency = h.price.Currency()
+		}
+		if !services.IsSupportedCurrency(widget.PriceCurrency) {
+			apiError(w, http.StatusBadRequest, "unsupported price_currency")
+			return
+		}
+	} else {
+		widget.PriceCurrency = ""
+	}
+	widget.GoalCurrency = strings.ToUpper(strings.TrimSpace(widget.GoalCurrency))
+	if widget.GoalCurrency == "" {
+		widget.GoalCurrency = "XMR"
+	}
+	if widget.GoalAmount > 0 && widget.GoalCurrency != "XMR" && !services.IsSupportedCurrency(widget.GoalCurrency) {
+		apiError(w, http.StatusBadRequest, "unsupported goal_currency")
+		return
+	}
+	if widget.GoalAmount <= 0 {
+		widget.GoalCurrency = "XMR"
+		widget.GoalDeadline = 0
 	}
 
 	if body.ShowStats != nil {
@@ -311,12 +387,16 @@ func (h *APIHandler) CreateWidget(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if mode == database.ModePayment {
-		if len(body.PresetAmounts) != 1 || body.PresetAmounts[0] <= 0 {
-			apiError(w, http.StatusBadRequest, "payment mode requires exactly one preset amount greater than zero")
-			return
+		if widget.PriceFiat > 0 {
+			widget.PresetAmounts = ""
+		} else {
+			if len(body.PresetAmounts) != 1 || body.PresetAmounts[0] <= 0 {
+				apiError(w, http.StatusBadRequest, "payment mode requires one preset amount or a price_fiat")
+				return
+			}
+			b, _ := json.Marshal(body.PresetAmounts)
+			widget.PresetAmounts = string(b)
 		}
-		b, _ := json.Marshal(body.PresetAmounts)
-		widget.PresetAmounts = string(b)
 	} else if len(body.PresetAmounts) > 0 {
 		valid := make([]float64, 0, len(body.PresetAmounts))
 		for _, a := range body.PresetAmounts {
@@ -443,14 +523,75 @@ func (h *APIHandler) UpdateWidget(w http.ResponseWriter, r *http.Request) {
 			existing.RedirectURL = s
 		}
 	}
+	if v, ok := body["confirmations"]; ok {
+		var n int
+		if json.Unmarshal(v, &n) == nil {
+			existing.Confirmations = parseConfirmations(strconv.Itoa(n))
+		}
+	}
+	if v, ok := body["price_fiat"]; ok {
+		var f float64
+		if json.Unmarshal(v, &f) == nil && f >= 0 {
+			existing.PriceFiat = f
+		}
+	}
+	if v, ok := body["price_currency"]; ok {
+		var s string
+		if json.Unmarshal(v, &s) == nil {
+			existing.PriceCurrency = strings.ToUpper(strings.TrimSpace(s))
+		}
+	}
+	if v, ok := body["goal_amount"]; ok {
+		var f float64
+		if json.Unmarshal(v, &f) == nil && f >= 0 {
+			existing.GoalAmount = f
+		}
+	}
+	if v, ok := body["goal_currency"]; ok {
+		var s string
+		if json.Unmarshal(v, &s) == nil {
+			existing.GoalCurrency = strings.ToUpper(strings.TrimSpace(s))
+		}
+	}
+	if v, ok := body["goal_deadline"]; ok {
+		var n int64
+		if json.Unmarshal(v, &n) == nil {
+			existing.GoalDeadline = n
+		}
+	}
 
-	if existing.Mode == database.ModePayment {
+	if existing.PriceFiat > 0 {
+		if existing.PriceCurrency == "" {
+			existing.PriceCurrency = h.price.Currency()
+		}
+		if !services.IsSupportedCurrency(existing.PriceCurrency) {
+			apiError(w, http.StatusBadRequest, "unsupported price_currency")
+			return
+		}
+		existing.PresetAmounts = ""
+	} else {
+		existing.PriceCurrency = ""
+	}
+	if existing.GoalAmount > 0 {
+		if existing.GoalCurrency == "" {
+			existing.GoalCurrency = "XMR"
+		}
+		if existing.GoalCurrency != "XMR" && !services.IsSupportedCurrency(existing.GoalCurrency) {
+			apiError(w, http.StatusBadRequest, "unsupported goal_currency")
+			return
+		}
+	} else {
+		existing.GoalCurrency = "XMR"
+		existing.GoalDeadline = 0
+	}
+
+	if existing.Mode == database.ModePayment && existing.PriceFiat <= 0 {
 		var amounts []float64
 		if existing.PresetAmounts != "" {
-			json.Unmarshal([]byte(existing.PresetAmounts), &amounts)
+			_ = json.Unmarshal([]byte(existing.PresetAmounts), &amounts)
 		}
 		if len(amounts) != 1 || amounts[0] <= 0 {
-			apiError(w, http.StatusBadRequest, "payment mode requires exactly one preset amount greater than zero")
+			apiError(w, http.StatusBadRequest, "payment mode requires one preset amount or a price_fiat")
 			return
 		}
 	}
@@ -490,7 +631,7 @@ func (h *APIHandler) ListTransactions(w http.ResponseWriter, r *http.Request) {
 	}
 	status := database.TransactionStatus(r.URL.Query().Get("status"))
 
-	total, err := h.db.CountTransactions(userID, status)
+	total, err := h.db.CountTransactions(userID, database.TransactionFilter{Status: status})
 	if err != nil {
 		h.log.Error().Err(err).Msg("api: failed to count transactions")
 		apiError(w, http.StatusInternalServerError, "failed to list transactions")
@@ -623,7 +764,7 @@ func (h *APIHandler) CreateWallet(w http.ResponseWriter, r *http.Request) {
 
 	cfg := &database.WalletConfig{
 		UserID:         userID,
-		RPCURL:         body.RPCURL,
+		RPCURL:         monero.NormalizeRPCURL(body.RPCURL),
 		RPCUser:        body.RPCUser,
 		RPCPassword:    body.RPCPassword,
 		WalletFile:     body.WalletFile,
@@ -678,7 +819,7 @@ func (h *APIHandler) UpdateWallet(w http.ResponseWriter, r *http.Request) {
 	if v, ok := body["rpc_url"]; ok {
 		var s string
 		if json.Unmarshal(v, &s) == nil {
-			cfg.RPCURL = s
+			cfg.RPCURL = monero.NormalizeRPCURL(s)
 		}
 	}
 	if v, ok := body["rpc_user"]; ok {

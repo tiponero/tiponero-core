@@ -3,10 +3,10 @@ tmp_dir = "tmp"
 
 [build]
   cmd = "make build"
-  bin = "./bin/tiponero"
+  entrypoint = ["./bin/tiponero"]
   delay = 500
   include_ext = ["go", "templ", "css"]
-  exclude_dir = ["tmp", "bin", "node_modules", "static/css"]
+  exclude_dir = ["tmp", "bin", "node_modules", "static/css", "vendor"]
   exclude_regex = ["_templ\\.go$"]
   kill_delay = "1s"
 

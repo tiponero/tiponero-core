@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-templ TransactionDetail(tx *database.Transaction, widget *database.Widget, requiredConfirmations int, rpcStatus monero.ConnectionStatus) {
+templ TransactionDetail(tx *database.Transaction, widget *database.Widget, requiredConfirmations int, rpcStatus monero.ConnectionStatus, mockPayments bool) {
 	@layouts.Admin("Transaction", rpcStatus) {
 		<a href="/admin/transactions" class="inline-flex items-center gap-1 text-secondary-fixed-dim hover:text-primary-container transition-colors mb-6">
 			<span class="material-symbols-outlined text-[20px]">arrow_back</span>
@@ -33,7 +33,7 @@ templ TransactionDetail(tx *database.Transaction, widget *database.Widget, requi
 					}
 					@detailField("Status") {
 						<div class="flex flex-wrap items-center gap-3">
-							if tx.Status == database.StatusUnderpaid {
+							if tx.Status == database.StatusPartial || tx.Status == database.StatusReverted {
 								<span class="inline-flex rounded-md text-xs font-mono uppercase tracking-widest bg-error-container/10 text-error">
 									{ string(tx.Status) }
 								</span>
@@ -51,6 +51,13 @@ templ TransactionDetail(tx *database.Transaction, widget *database.Widget, requi
 									{ fmt.Sprintf("%d / %d confirmations", tx.Confirmations, requiredConfirmations) }
 								</span>
 							}
+							if mockPayments && tx.Status != database.StatusConfirmed {
+								<form method="POST" action={ templ.SafeURL("/admin/transactions/" + tx.ID + "/mock-pay") }>
+									<button type="submit" class="text-xs font-mono uppercase tracking-widest px-3 py-1.5 rounded-md bg-surface-container-high text-on-surface-variant hover:bg-surface-bright transition-colors">
+										Simulate payment
+									</button>
+								</form>
+							}
 						</div>
 					}
 					@detailField("ID") {
@@ -66,7 +73,7 @@ templ TransactionDetail(tx *database.Transaction, widget *database.Widget, requi
 							} else {
 								<div class="flex items-center gap-2">
 									<a
-										href={ templ.SafeURL("https://localmonero.co/blocks/tx/" + tx.TxHash) }
+										href={ templ.SafeURL("https://xmrchain.net/tx/" + tx.TxHash) }
 										target="_blank"
 										rel="noopener noreferrer"
 										class="font-mono text-sm text-primary-container hover:underline break-all"
@@ -74,7 +81,7 @@ templ TransactionDetail(tx *database.Transaction, widget *database.Widget, requi
 										{ tx.TxHash }
 									</a>
 									<a
-										href={ templ.SafeURL("https://localmonero.co/blocks/tx/" + tx.TxHash) }
+										href={ templ.SafeURL("https://xmrchain.net/tx/" + tx.TxHash) }
 										target="_blank"
 										rel="noopener noreferrer"
 										class="material-symbols-outlined text-base text-primary-container shrink-0"
@@ -137,7 +144,7 @@ templ TransactionDetail(tx *database.Transaction, widget *database.Widget, requi
 							<span class="font-mono text-sm">{ fmtTimestamp(tx.ConfirmedAt) }</span>
 						}
 					}
-					if tx.Status == database.StatusPending || tx.Status == database.StatusMempool || tx.Status == database.StatusConfirming || tx.Status == database.StatusUnderpaid {
+					if tx.Status == database.StatusPending || tx.Status == database.StatusMempool || tx.Status == database.StatusConfirming || tx.Status == database.StatusPartial {
 						@detailField("Expires") {
 							<span class="font-mono text-sm">{ fmtTimestamp(tx.ExpiresAt) }</span>
 						}

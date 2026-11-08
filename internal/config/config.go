@@ -18,6 +18,9 @@ type Config struct {
 	FiatCurrency          string
 	RequiredConfirmations int
 	TransactionExpiry     time.Duration
+	CoinMarketCapAPIKey   string
+	MockPayments          bool
+	TrustProxy            bool
 }
 
 func Load() Config {
@@ -59,6 +62,9 @@ func Load() Config {
 		FiatCurrency:          fiatCurrency,
 		RequiredConfirmations: confirmations,
 		TransactionExpiry:     transactionExpiry,
+		CoinMarketCapAPIKey:   os.Getenv("COINMARKETCAP_API_KEY"),
+		MockPayments:          os.Getenv("MOCK_PAYMENTS") == "true",
+		TrustProxy:            os.Getenv("TRUST_PROXY") == "true",
 	}
 
 	cfg.validate()

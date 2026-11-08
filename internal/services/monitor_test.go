@@ -52,12 +52,13 @@ func TestResolveStatus(t *testing.T) {
 		confirms  uint64
 		want      database.TransactionStatus
 	}{
-		{name: "underpaid in mempool", requested: 100, amount: 50, confirms: 0, want: database.StatusUnderpaid},
-		{name: "underpaid with confirmations", requested: 100, amount: 50, confirms: 20, want: database.StatusUnderpaid},
+		{name: "partial in mempool", requested: 100, amount: 50, confirms: 0, want: database.StatusPartial},
+		{name: "partial with confirmations", requested: 100, amount: 50, confirms: 20, want: database.StatusPartial},
 		{name: "exact in mempool", requested: 100, amount: 100, confirms: 0, want: database.StatusMempool},
 		{name: "exact confirming", requested: 100, amount: 100, confirms: 1, want: database.StatusConfirming},
 		{name: "overpaid confirming", requested: 100, amount: 150, confirms: 9, want: database.StatusConfirming},
 		{name: "exact confirmed", requested: 100, amount: 100, confirms: 10, want: database.StatusConfirmed},
+		{name: "0-conf mempool confirms", requested: 100, amount: 100, confirms: 0, want: database.StatusConfirmed},
 		{name: "open donation in mempool", requested: 0, amount: 1, confirms: 0, want: database.StatusMempool},
 		{name: "open donation confirmed", requested: 0, amount: 1, confirms: 10, want: database.StatusConfirmed},
 	}
@@ -66,7 +67,11 @@ func TestResolveStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tx := database.Transaction{Amount: tt.requested}
 			transfer := transferTotal{amount: tt.amount, confirmations: tt.confirms}
-			if got := m.resolveStatus(tx, transfer); got != tt.want {
+			required := m.confirmations
+			if tt.name == "0-conf mempool confirms" {
+				required = 0
+			}
+			if got := resolveStatus(tx, transfer, required); got != tt.want {
 				t.Fatalf("resolveStatus(requested=%d, amount=%d, confirms=%d) = %s, want %s", tt.requested, tt.amount, tt.confirms, got, tt.want)
 			}
 		})

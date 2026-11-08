@@ -1,0 +1,379 @@
+package admin
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/tiponero/tiponero-core/internal/database"
+	"github.com/tiponero/tiponero-core/internal/monero"
+	"github.com/tiponero/tiponero-core/internal/services"
+	"github.com/tiponero/tiponero-core/internal/views/components"
+	"github.com/tiponero/tiponero-core/internal/views/layouts"
+)
+
+type NotificationsData struct {
+	Webhooks       []database.Webhook
+	Channels       []database.NotificationChannel
+	ChannelConfigs map[string]services.ChannelConfig
+	Deliveries     []database.NotificationDelivery
+	Pending        int
+	Failed         int
+	Events         []string
+	ChannelTypes   []string
+	NewSecret      string
+	Toast          string
+	ToastVariant   string
+}
+
+func hasEvent(events, event string) bool {
+	return database.Subscribes(events, event)
+}
+
+func eventShortName(event string) string {
+	return strings.TrimPrefix(event, "payment.")
+}
+
+func channelIcon(kind string) string {
+	switch kind {
+	case "telegram":
+		return "send"
+	case "discord":
+		return "forum"
+	case "slack":
+		return "tag"
+	case "ntfy":
+		return "notifications"
+	case "whatsapp":
+		return "chat"
+	case "email":
+		return "mail"
+	default:
+		return "webhook"
+	}
+}
+
+func deliveryBadge(status database.DeliveryStatus) string {
+	switch status {
+	case database.DeliveryDelivered:
+		return "bg-primary-container/10 text-primary-container"
+	case database.DeliveryFailed:
+		return "bg-error-container/20 text-error"
+	default:
+		return "bg-surface-container-high text-on-surface-variant"
+	}
+}
+
+templ Notifications(d NotificationsData) {
+	@layouts.Admin("Notifications", monero.ConnectionStatus{}) {
+		@components.PageTitle("Notifications")
+
+		if d.Toast != "" {
+			@components.FlashBanner(d.ToastVariant, d.Toast)
+		}
+
+		if d.NewSecret != "" {
+			<div class="bg-primary-container/10 border border-primary-container/30 p-6 rounded-xl mb-8">
+				<div class="flex items-center gap-3 mb-3">
+					<span class="material-symbols-outlined text-primary-container" style="font-variation-settings: 'FILL' 1;">key</span>
+					<p class="font-headline font-bold text-on-surface">Copy the signing secret now</p>
+				</div>
+				<code class="block bg-surface-container-lowest p-4 rounded-md font-mono text-xs break-all text-primary-container">{ d.NewSecret }</code>
+			</div>
+		}
+
+		<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+			@summaryCard("Webhooks", fmt.Sprintf("%d", len(d.Webhooks)), "webhook")
+			@summaryCard("Channels", fmt.Sprintf("%d", len(d.Channels)), "notifications")
+			@summaryCard("Queue", fmt.Sprintf("%d pending / %d failed", d.Pending, d.Failed), "schedule")
+		</div>
+
+		<div class="space-y-8">
+			@components.SectionCard("Webhooks", "webhook") {
+				<div class="space-y-4">
+					for _, hook := range d.Webhooks {
+						<div class="bg-surface-container-lowest rounded-md p-5">
+							<div class="flex flex-wrap items-start justify-between gap-3">
+								<div class="min-w-0">
+									<div class="flex items-center gap-2">
+										<p class="font-headline font-bold text-on-surface">{ hook.Name }</p>
+										if hook.Active {
+											<span class="text-[10px] font-mono uppercase tracking-widest bg-primary-container/10 text-primary-container px-2 py-0.5 rounded">Active</span>
+										} else {
+											<span class="text-[10px] font-mono uppercase tracking-widest bg-surface-container-high text-on-surface-variant px-2 py-0.5 rounded">Paused</span>
+										}
+									</div>
+									<p class="text-xs font-mono text-on-surface-variant mt-1 break-all">{ hook.URL }</p>
+								</div>
+								<div class="flex items-center gap-2">
+									<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/admin/notifications/webhooks/%s/test", hook.ID)) }>
+										<button type="submit" class="text-xs font-mono uppercase tracking-widest px-3 py-2 rounded-md bg-surface-container-high text-on-surface-variant hover:bg-surface-bright transition-colors">Test</button>
+									</form>
+									<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/admin/notifications/webhooks/%s/rotate", hook.ID)) }>
+										<button type="submit" class="text-xs font-mono uppercase tracking-widest px-3 py-2 rounded-md bg-surface-container-high text-on-surface-variant hover:bg-surface-bright transition-colors">Rotate secret</button>
+									</form>
+									<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/admin/notifications/webhooks/%s/delete", hook.ID)) }>
+										<button type="submit" class="text-xs font-mono uppercase tracking-widest px-3 py-2 rounded-md text-error hover:bg-error-container/20 transition-colors">Delete</button>
+									</form>
+								</div>
+							</div>
+							<div class="flex flex-wrap gap-1.5 mt-3">
+								for _, e := range database.SplitEvents(hook.Events) {
+									<span class="text-[10px] font-mono uppercase tracking-widest bg-surface-container-high text-on-surface-variant px-2 py-0.5 rounded">{ eventShortName(e) }</span>
+								}
+							</div>
+							<details class="mt-4">
+								<summary class="cursor-pointer text-xs font-mono uppercase tracking-widest text-on-surface-variant">Edit</summary>
+								<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/admin/notifications/webhooks/%s/update", hook.ID)) } class="space-y-4 mt-4">
+									<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+										@components.FormField("name", "Name", "text", hook.Name, "Store backend", templ.Attributes{"required": true})
+										@components.FormField("url", "Endpoint URL", "url", hook.URL, "https://example.com/tiponero", templ.Attributes{"required": true})
+									</div>
+									@eventCheckboxes(hook.Events)
+									<label class="flex items-center gap-2 text-sm text-on-surface-variant">
+										<input type="checkbox" name="active" checked?={ hook.Active } class="accent-primary-container"/>
+										Active
+									</label>
+									@components.PrimaryButton("Save webhook", false)
+								</form>
+							</details>
+						</div>
+					}
+
+					if len(d.Webhooks) == 0 {
+						<p class="text-sm text-on-surface-variant font-body">No webhooks yet.</p>
+					}
+				</div>
+
+				<div class="mt-8 pt-8 border-t border-outline-variant/15">
+					<h4 class="font-headline font-bold text-on-surface mb-4">Add a webhook</h4>
+					<form method="POST" action="/admin/notifications/webhooks" class="space-y-4">
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+							@components.FormField("name", "Name", "text", "", "Store backend", templ.Attributes{"required": true})
+							@components.FormField("url", "Endpoint URL", "url", "", "https://example.com/tiponero", templ.Attributes{"required": true})
+						</div>
+						@eventCheckboxes("")
+						@components.PrimaryButton("Create webhook", false)
+					</form>
+				</div>
+			}
+		</div>
+
+		<div class="mt-8">
+			@components.SectionCard("Channels", "notifications") {
+				<div class="space-y-4">
+					for _, channel := range d.Channels {
+						<div class="bg-surface-container-lowest rounded-md p-5">
+							<div class="flex flex-wrap items-start justify-between gap-3">
+								<div class="min-w-0">
+									<div class="flex items-center gap-2">
+										<span class="material-symbols-outlined text-primary-container text-lg">{ channelIcon(channel.Type) }</span>
+										<p class="font-headline font-bold text-on-surface">{ channel.Name }</p>
+										<span class="text-[10px] font-mono uppercase tracking-widest bg-surface-container-high text-on-surface-variant px-2 py-0.5 rounded">{ channel.Type }</span>
+										if channel.Active {
+											<span class="text-[10px] font-mono uppercase tracking-widest bg-primary-container/10 text-primary-container px-2 py-0.5 rounded">Active</span>
+										}
+									</div>
+								</div>
+								<div class="flex items-center gap-2">
+									<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/admin/notifications/channels/%s/test", channel.ID)) }>
+										<button type="submit" class="text-xs font-mono uppercase tracking-widest px-3 py-2 rounded-md bg-surface-container-high text-on-surface-variant hover:bg-surface-bright transition-colors">Test</button>
+									</form>
+									<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/admin/notifications/channels/%s/delete", channel.ID)) }>
+										<button type="submit" class="text-xs font-mono uppercase tracking-widest px-3 py-2 rounded-md text-error hover:bg-error-container/20 transition-colors">Delete</button>
+									</form>
+								</div>
+							</div>
+							<div class="flex flex-wrap gap-1.5 mt-3">
+								for _, e := range database.SplitEvents(channel.Events) {
+									<span class="text-[10px] font-mono uppercase tracking-widest bg-surface-container-high text-on-surface-variant px-2 py-0.5 rounded">{ eventShortName(e) }</span>
+								}
+							</div>
+							<details class="mt-4">
+								<summary class="cursor-pointer text-xs font-mono uppercase tracking-widest text-on-surface-variant">Edit</summary>
+								<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/admin/notifications/channels/%s/update", channel.ID)) } class="space-y-4 mt-4">
+									@channelFields(channel.Type, d.ChannelConfigs[channel.ID])
+									@eventCheckboxes(channel.Events)
+									<label class="flex items-center gap-2 text-sm text-on-surface-variant">
+										<input type="checkbox" name="active" checked?={ channel.Active } class="accent-primary-container"/>
+										Active
+									</label>
+									@components.PrimaryButton("Save channel", false)
+								</form>
+							</details>
+						</div>
+					}
+
+					if len(d.Channels) == 0 {
+						<p class="text-sm text-on-surface-variant font-body">No channels yet.</p>
+					}
+				</div>
+
+				<div class="mt-8 pt-8 border-t border-outline-variant/15">
+					<h4 class="font-headline font-bold text-on-surface mb-4">Add a channel</h4>
+					<form method="POST" action="/admin/notifications/channels" class="space-y-4" x-data="{ kind: 'telegram' }">
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+							<div class="space-y-1.5">
+								<label for="channel_type" class="text-xs font-mono uppercase tracking-widest text-on-surface-variant">Type</label>
+								<select id="channel_type" name="type" x-model="kind" class="w-full bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30">
+									for _, t := range d.ChannelTypes {
+										<option value={ t }>{ t }</option>
+									}
+								</select>
+							</div>
+							@components.FormField("name", "Name", "text", "", "Ops alerts", templ.Attributes{})
+						</div>
+						@channelFieldsDynamic()
+						@eventCheckboxes("")
+						@components.PrimaryButton("Add channel", false)
+					</form>
+				</div>
+			}
+		</div>
+
+		<div class="mt-8">
+			@components.SectionCard("Delivery log", "schedule") {
+				if len(d.Deliveries) == 0 {
+					<p class="text-sm text-on-surface-variant font-body">Nothing sent yet.</p>
+				} else {
+					<div class="overflow-x-auto">
+						<table class="w-full text-left">
+							<thead>
+								<tr class="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant border-b border-outline-variant/15">
+									<th class="py-2 pr-4">Event</th>
+									<th class="py-2 pr-4">Kind</th>
+									<th class="py-2 pr-4">Status</th>
+									<th class="py-2 pr-4">Attempts</th>
+									<th class="py-2 pr-4">When</th>
+									<th class="py-2">Detail</th>
+								</tr>
+							</thead>
+							<tbody>
+								for _, row := range d.Deliveries {
+									<tr class="border-b border-outline-variant/10 align-top">
+										<td class="py-2 pr-4 font-mono text-xs">{ row.Event }</td>
+										<td class="py-2 pr-4 font-mono text-xs uppercase">{ row.Kind }</td>
+										<td class="py-2 pr-4">
+											<span class={ "text-[10px] font-mono uppercase tracking-widest px-2 py-0.5 rounded", deliveryBadge(row.Status) }>{ row.Status }</span>
+										</td>
+										<td class="py-2 pr-4 font-mono text-xs">{ fmt.Sprintf("%d", row.Attempts) }</td>
+										<td class="py-2 pr-4 font-mono text-xs text-on-surface-variant">{ time.Unix(row.CreatedAt, 0).Format("02 Jan 15:04") }</td>
+										<td class="py-2 font-body text-xs text-on-surface-variant break-all">
+											if row.LastError != "" {
+												{ row.LastError }
+											} else if row.ResponseCode != 0 {
+												{ fmt.Sprintf("HTTP %d", row.ResponseCode) }
+											}
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				}
+			}
+		</div>
+	}
+}
+
+templ summaryCard(label, value, icon string) {
+	<div class="bg-monero-gray/20 p-5 rounded-xl border border-outline-variant/10 flex items-center gap-4">
+		<span class="material-symbols-outlined text-primary-container">{ icon }</span>
+		<div>
+			<p class="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant">{ label }</p>
+			<p class="font-headline font-bold text-on-surface">{ value }</p>
+		</div>
+	</div>
+}
+
+templ eventCheckboxes(selected string) {
+	<div class="space-y-1.5">
+		<p class="text-xs font-mono uppercase tracking-widest text-on-surface-variant">Events</p>
+		<div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+			for _, e := range database.AllEvents {
+				<label class="flex items-center gap-2 text-xs font-mono text-on-surface-variant">
+					<input type="checkbox" name="events" value={ e } checked?={ hasEvent(selected, e) } class="accent-primary-container"/>
+					{ eventShortName(e) }
+				</label>
+			}
+		</div>
+	</div>
+}
+
+templ channelFields(kind string, cfg services.ChannelConfig) {
+	<input type="hidden" name="type" value={ kind }/>
+	switch kind {
+		case "telegram":
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+				@components.FormField("bot_token", "Bot token", "password", "", "", templ.Attributes{})
+				@components.FormField("chat_id", "Chat ID", "text", cfg.ChatID, "-1001234567890", templ.Attributes{})
+			</div>
+		case "discord":
+			@components.FormField("url", "Discord webhook URL", "url", cfg.URL, "https://discord.com/api/webhooks/...", templ.Attributes{})
+		case "slack":
+			@components.FormField("url", "Slack webhook URL", "url", cfg.URL, "https://hooks.slack.com/services/...", templ.Attributes{})
+		case "ntfy":
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+				@components.FormField("url", "Server", "url", cfg.URL, "https://ntfy.sh", templ.Attributes{})
+				@components.FormField("topic", "Topic", "text", cfg.Topic, "tiponero", templ.Attributes{})
+			</div>
+		case "whatsapp":
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+				@components.FormField("account_sid", "Twilio Account SID", "text", cfg.AccountSID, "AC...", templ.Attributes{})
+				@components.FormField("auth_token", "Twilio Auth Token", "password", "", "", templ.Attributes{})
+				@components.FormField("whatsapp_from", "From", "text", cfg.WhatsAppFrom, "whatsapp:+14155238886", templ.Attributes{})
+				@components.FormField("whatsapp_to", "To", "text", cfg.WhatsAppTo, "whatsapp:+15551234567", templ.Attributes{})
+			</div>
+		case "email":
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+				@components.FormField("smtp_host", "SMTP host", "text", cfg.SMTPHost, "smtp.sendgrid.net", templ.Attributes{})
+				@components.FormField("smtp_port", "Port", "number", fmt.Sprintf("%d", cfg.SMTPPort), "587", templ.Attributes{})
+				@components.FormField("smtp_user", "SMTP user", "text", cfg.SMTPUser, "apikey", templ.Attributes{})
+			</div>
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+				@components.FormField("smtp_pass", "SMTP password", "password", "", "", templ.Attributes{})
+				@components.FormField("from", "From address", "email", cfg.From, "tiponero@example.com", templ.Attributes{})
+				@components.FormField("to", "To address", "email", cfg.To, "you@example.com", templ.Attributes{})
+			</div>
+		default:
+			@components.FormField("url", "Endpoint URL", "url", cfg.URL, "https://example.com/notify", templ.Attributes{})
+	}
+}
+
+templ channelFieldsDynamic() {
+	<div x-show="kind === 'telegram'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+		@components.FormField("bot_token", "Bot token", "password", "", "123456:ABC...", templ.Attributes{})
+		@components.FormField("chat_id", "Chat ID", "text", "", "-1001234567890", templ.Attributes{})
+	</div>
+	<div x-show="kind === 'discord'" x-cloak>
+		@components.FormField("discord_url", "Discord webhook URL", "url", "", "https://discord.com/api/webhooks/...", templ.Attributes{})
+	</div>
+	<div x-show="kind === 'slack'" x-cloak>
+		@components.FormField("slack_url", "Slack webhook URL", "url", "", "https://hooks.slack.com/services/...", templ.Attributes{})
+	</div>
+	<div x-show="kind === 'ntfy'" x-cloak class="grid grid-cols-1 md:grid-cols-2 gap-4">
+		@components.FormField("ntfy_url", "Server", "url", "", "https://ntfy.sh", templ.Attributes{})
+		@components.FormField("ntfy_topic", "Topic", "text", "", "tiponero", templ.Attributes{})
+	</div>
+	<div x-show="kind === 'whatsapp'" x-cloak class="grid grid-cols-1 md:grid-cols-2 gap-4">
+		@components.FormField("account_sid", "Twilio Account SID", "text", "", "AC...", templ.Attributes{})
+		@components.FormField("auth_token", "Twilio Auth Token", "password", "", "token", templ.Attributes{})
+		@components.FormField("whatsapp_from", "From", "text", "", "whatsapp:+14155238886", templ.Attributes{})
+		@components.FormField("whatsapp_to", "To", "text", "", "whatsapp:+15551234567", templ.Attributes{})
+	</div>
+	<div x-show="kind === 'email'" x-cloak class="space-y-4">
+		<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+			@components.FormField("smtp_host", "SMTP host", "text", "", "smtp.sendgrid.net", templ.Attributes{})
+			@components.FormField("smtp_port", "Port", "number", "", "587", templ.Attributes{})
+			@components.FormField("smtp_user", "SMTP user", "text", "", "apikey", templ.Attributes{})
+		</div>
+		<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+			@components.FormField("smtp_pass", "SMTP password", "password", "", "SG...", templ.Attributes{})
+			@components.FormField("from", "From address", "email", "", "tiponero@example.com", templ.Attributes{})
+			@components.FormField("to", "To address", "email", "", "you@example.com", templ.Attributes{})
+		</div>
+	</div>
+	<div x-show="kind === 'generic'" x-cloak>
+		@components.FormField("generic_url", "Endpoint URL", "url", "", "https://example.com/notify", templ.Attributes{})
+	</div>
+}

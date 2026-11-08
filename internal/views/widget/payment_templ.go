@@ -71,44 +71,63 @@ func Payment(tx *database.Transaction, widget *database.Widget, requiredConfirma
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
+				if tx.FiatAmount > 0 {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<p class=\"text-xs font-mono text-gray-400 dark:text-on-surface-variant mt-1\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var4 string
+					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("≈ %.2f %s at the rate locked when this request was created", tx.FiatAmount, tx.FiatCurrency))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/widget/payment.templ`, Line: 23, Col: 193}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</p>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<p class=\"text-gray-500 dark:text-on-surface-variant font-body\">Any amount</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<p class=\"text-gray-500 dark:text-on-surface-variant font-body\">Any amount</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div><div class=\"flex justify-center mb-6\"><div class=\"bg-white p-3 rounded-lg\"><img src=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var4 string
-			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/widget/qr/%s", tx.ID))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/widget/payment.templ`, Line: 29, Col: 48}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" alt=\"QR Code\" class=\"w-48 h-48\"></div></div><div class=\"bg-gray-100 dark:bg-surface-container-lowest rounded-md p-4 mb-6\"><p class=\"text-xs font-mono uppercase tracking-widest text-gray-400 dark:text-on-surface-variant mb-2\">Monero Subaddress</p><p class=\"text-xs font-mono text-gray-700 dark:text-on-surface-variant break-all select-all leading-relaxed\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</div><div class=\"flex justify-center mb-6\"><div class=\"bg-white p-3 rounded-lg\"><img src=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var5 string
-			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(tx.Subaddress)
+			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(qrURL(tx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/widget/payment.templ`, Line: 37, Col: 129}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/widget/payment.templ`, Line: 32, Col: 22}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" alt=\"QR Code\" class=\"w-48 h-48\"></div></div><div class=\"bg-gray-100 dark:bg-surface-container-lowest rounded-md p-4 mb-6\"><p class=\"text-xs font-mono uppercase tracking-widest text-gray-400 dark:text-on-surface-variant mb-2\">Monero Subaddress</p><p class=\"text-xs font-mono text-gray-700 dark:text-on-surface-variant break-all select-all leading-relaxed\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var6 string
+			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(tx.Subaddress)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/widget/payment.templ`, Line: 40, Col: 129}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if widget.RedirectURL != "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<div class=\"bg-yellow-50 dark:bg-surface-container-high rounded-md p-3 mb-4 flex items-center gap-2\"><span class=\"material-symbols-outlined text-yellow-600 dark:text-yellow-400 text-lg shrink-0\">warning</span><p class=\"text-xs text-yellow-700 dark:text-yellow-300 font-body\">Please don't close this window. You will be redirected automatically once the payment is confirmed.</p></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div class=\"bg-yellow-50 dark:bg-surface-container-high rounded-md p-3 mb-4 flex items-center gap-2\"><span class=\"material-symbols-outlined text-yellow-600 dark:text-yellow-400 text-lg shrink-0\">warning</span><p class=\"text-xs text-yellow-700 dark:text-yellow-300 font-body\">Please don't close this window. You will be redirected automatically once the payment is confirmed.</p></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -117,12 +136,12 @@ func Payment(tx *database.Transaction, widget *database.Widget, requiredConfirma
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if widget.RedirectURL != "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<script>\n\t\t\t\t// Warn user before closing during payment\n\t\t\t\twindow.__tiponeroBeforeUnload = function(e) {\n\t\t\t\t\te.preventDefault();\n\t\t\t\t\te.returnValue = '';\n\t\t\t\t};\n\t\t\t\twindow.addEventListener('beforeunload', window.__tiponeroBeforeUnload);\n\t\t\t\t// Remove warning when HTMX receives HX-Redirect (payment confirmed)\n\t\t\t\tdocument.body.addEventListener('htmx:beforeOnLoad', function(evt) {\n\t\t\t\t\tif (evt.detail.xhr && evt.detail.xhr.getResponseHeader('HX-Redirect')) {\n\t\t\t\t\t\twindow.removeEventListener('beforeunload', window.__tiponeroBeforeUnload);\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t\t</script>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<script>\n\t\t\t\t// Warn user before closing during payment\n\t\t\t\twindow.__tiponeroBeforeUnload = function(e) {\n\t\t\t\t\te.preventDefault();\n\t\t\t\t\te.returnValue = '';\n\t\t\t\t};\n\t\t\t\twindow.addEventListener('beforeunload', window.__tiponeroBeforeUnload);\n\t\t\t\t// Remove warning when HTMX receives HX-Redirect (payment confirmed)\n\t\t\t\tdocument.body.addEventListener('htmx:beforeOnLoad', function(evt) {\n\t\t\t\t\tif (evt.detail.xhr && evt.detail.xhr.getResponseHeader('HX-Redirect')) {\n\t\t\t\t\t\twindow.removeEventListener('beforeunload', window.__tiponeroBeforeUnload);\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t\t</script>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

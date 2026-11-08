@@ -59,7 +59,7 @@ func (a *APIKeyAuthenticator) RequireAPIKey(next http.Handler) http.Handler {
 			return
 		}
 
-		go a.db.TouchAPIKey(matched.ID)
+		go func() { _ = a.db.TouchAPIKey(matched.ID) }()
 
 		ctx := context.WithValue(r.Context(), userIDKey, matched.UserID)
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -71,7 +71,7 @@ func isValidKeyFormat(key string) bool {
 		return false
 	}
 	for _, c := range key[4:] {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			return false
 		}
 	}
@@ -81,5 +81,5 @@ func isValidKeyFormat(key string) bool {
 func writeAPIError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
 }

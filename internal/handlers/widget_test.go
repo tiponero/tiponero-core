@@ -17,8 +17,12 @@ import (
 
 type fakePrice struct{}
 
-func (fakePrice) ConvertXMRToFiat(int64) float64 { return 0 }
-func (fakePrice) Currency() string               { return "USD" }
+func (fakePrice) ConvertXMRToFiat(int64) float64                    { return 0 }
+func (fakePrice) Currency() string                                  { return "USD" }
+func (fakePrice) ConvertXMRToFiatIn(int64, string) (float64, error) { return 0, nil }
+func (fakePrice) ConvertFiatToPiconero(amount float64, _ string) (int64, float64, error) {
+	return int64(amount * 1e12), 1, nil
+}
 
 func newWidgetTestDB(t *testing.T, mode database.WidgetMode, presets string) (*database.DB, *database.User, *database.Widget) {
 	t.Helper()
@@ -88,7 +92,15 @@ func postDonation(t *testing.T, h *WidgetHandler, widgetID string, form url.Valu
 func TestCreateTransactionEnforcesPaymentPrice(t *testing.T) {
 	db, user, widget := newWidgetTestDB(t, database.ModePayment, `[0.1]`)
 	srv := newFakeWalletRPC(t)
-	h := NewWidgetHandler(db, monero.NewClientHolder(monero.NewClient(srv.URL, "", "")), fakePrice{}, "http://example.test", 10, time.Hour, zerolog.Nop())
+	h := NewWidgetHandler(Deps{
+		DB:                    db,
+		Wallet:                monero.NewClientHolder(monero.NewClient(srv.URL, "", "")),
+		Price:                 fakePrice{},
+		HostURL:               "http://example.test",
+		RequiredConfirmations: 10,
+		TransactionExpiry:     time.Hour,
+		Log:                   zerolog.Nop(),
+	})
 
 	rec := postDonation(t, h, widget.ID, url.Values{
 		"amount":        {"0.001"},
@@ -117,7 +129,15 @@ func TestCreateTransactionEnforcesPaymentPrice(t *testing.T) {
 func TestCreateTransactionKeepsCustomDonationAmount(t *testing.T) {
 	db, user, widget := newWidgetTestDB(t, database.ModeDonation, `[0.01,0.05]`)
 	srv := newFakeWalletRPC(t)
-	h := NewWidgetHandler(db, monero.NewClientHolder(monero.NewClient(srv.URL, "", "")), fakePrice{}, "http://example.test", 10, time.Hour, zerolog.Nop())
+	h := NewWidgetHandler(Deps{
+		DB:                    db,
+		Wallet:                monero.NewClientHolder(monero.NewClient(srv.URL, "", "")),
+		Price:                 fakePrice{},
+		HostURL:               "http://example.test",
+		RequiredConfirmations: 10,
+		TransactionExpiry:     time.Hour,
+		Log:                   zerolog.Nop(),
+	})
 
 	rec := postDonation(t, h, widget.ID, url.Values{"amount": {"0.25"}})
 	if rec.Code != http.StatusOK {
@@ -139,7 +159,15 @@ func TestCreateTransactionKeepsCustomDonationAmount(t *testing.T) {
 func TestCreateTransactionRejectsBrokenPaymentWidget(t *testing.T) {
 	db, user, widget := newWidgetTestDB(t, database.ModePayment, ``)
 	srv := newFakeWalletRPC(t)
-	h := NewWidgetHandler(db, monero.NewClientHolder(monero.NewClient(srv.URL, "", "")), fakePrice{}, "http://example.test", 10, time.Hour, zerolog.Nop())
+	h := NewWidgetHandler(Deps{
+		DB:                    db,
+		Wallet:                monero.NewClientHolder(monero.NewClient(srv.URL, "", "")),
+		Price:                 fakePrice{},
+		HostURL:               "http://example.test",
+		RequiredConfirmations: 10,
+		TransactionExpiry:     time.Hour,
+		Log:                   zerolog.Nop(),
+	})
 
 	rec := postDonation(t, h, widget.ID, url.Values{"amount": {"0.1"}})
 	if !strings.Contains(rec.Body.String(), "This payment widget is not configured correctly.") {

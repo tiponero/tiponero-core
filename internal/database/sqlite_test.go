@@ -121,7 +121,7 @@ func TestStatsFallBackToRequestedAmount(t *testing.T) {
 	}
 }
 
-func TestExpireUnderpaid(t *testing.T) {
+func TestExpirePartial(t *testing.T) {
 	db := newTestDB(t)
 	user, widget := seedUserAndWidget(t, db)
 	now := time.Now().Unix()
@@ -129,11 +129,11 @@ func TestExpireUnderpaid(t *testing.T) {
 	tx := &Transaction{
 		UserID:          user.ID,
 		WidgetID:        sql.NullString{String: widget.ID, Valid: true},
-		Subaddress:      "underpaid-subaddress",
+		Subaddress:      "partial-subaddress",
 		SubaddressIndex: 3,
 		Amount:          100,
 		ReceivedAmount:  50,
-		Status:          StatusUnderpaid,
+		Status:          StatusPartial,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 		ExpiresAt:       now - 1,
@@ -159,7 +159,7 @@ func TestExpireUnderpaid(t *testing.T) {
 	}
 }
 
-func TestGetActiveTransactionsIncludesUnderpaid(t *testing.T) {
+func TestGetActiveTransactionsIncludesPartial(t *testing.T) {
 	db := newTestDB(t)
 	user, widget := seedUserAndWidget(t, db)
 	now := time.Now().Unix()
@@ -167,11 +167,11 @@ func TestGetActiveTransactionsIncludesUnderpaid(t *testing.T) {
 	tx := &Transaction{
 		UserID:          user.ID,
 		WidgetID:        sql.NullString{String: widget.ID, Valid: true},
-		Subaddress:      "active-underpaid-subaddress",
+		Subaddress:      "active-partial-subaddress",
 		SubaddressIndex: 4,
 		Amount:          100,
 		ReceivedAmount:  50,
-		Status:          StatusUnderpaid,
+		Status:          StatusPartial,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 		ExpiresAt:       now + 3600,
@@ -187,8 +187,8 @@ func TestGetActiveTransactionsIncludesUnderpaid(t *testing.T) {
 	if len(active) != 1 {
 		t.Fatalf("active transactions = %d, want 1", len(active))
 	}
-	if active[0].Status != StatusUnderpaid {
-		t.Fatalf("Status = %s, want underpaid", active[0].Status)
+	if active[0].Status != StatusPartial {
+		t.Fatalf("Status = %s, want partial", active[0].Status)
 	}
 }
 
@@ -219,5 +219,5 @@ func TestEmptyPathStarts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDB with empty path: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 }

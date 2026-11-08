@@ -15,12 +15,13 @@ templ Transactions(transactions []database.Transaction, currentFilter string, pa
 			@components.OutlineLink("Export CSV", "/admin/transactions/export", "download", false)
 		</div>
 		<div class="bg-surface-container-lowest rounded-xl overflow-hidden">
-			<div class="px-6 py-4 flex gap-3">
+			<div class="px-6 py-4 flex flex-wrap gap-3">
 				@filterButton("All", "", currentFilter)
 				@filterButton("Pending", "pending", currentFilter)
 				@filterButton("Confirming", "confirming", currentFilter)
-				@filterButton("Underpaid", "underpaid", currentFilter)
+				@filterButton("Partial", "partial", currentFilter)
 				@filterButton("Confirmed", "confirmed", currentFilter)
+				@filterButton("Reverted", "reverted", currentFilter)
 				@filterButton("Expired", "expired", currentFilter)
 			</div>
 			<div class="min-h-[680px] flex flex-col">

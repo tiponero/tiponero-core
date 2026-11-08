@@ -43,12 +43,16 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to derive wallet encryption key")
 	}
+	notifyEncKey, err := crypto.DeriveKey([]byte(cfg.EncryptionKey), "notifications")
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to derive notification encryption key")
+	}
 
 	db, err := database.NewDB(cfg.DatabasePath)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize database")
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	log.Info().Msg("database initialized")
 
 	if err := seedUser(db); err != nil {
@@ -74,15 +78,33 @@ func main() {
 	wallet := monero.NewClientHolder(client)
 
 	authSvc := auth.NewService(hex.EncodeToString(sessionKey), cfg.SecureCookies)
-	priceSvc := services.NewPriceService(cfg.FiatCurrency)
+	priceSvc := services.NewPriceService(cfg.FiatCurrency, cfg.CoinMarketCapAPIKey)
+	dispatcher := services.NewDispatcher(db, cfg.BaseURL, log.Logger)
 
-	router := handlers.NewRouter(db, authSvc, wallet, priceSvc, cfg.BaseURL, walletEncKey, cfg.RequiredConfirmations, cfg.TransactionExpiry, log.Logger)
+	router := handlers.NewRouter(handlers.Deps{
+		DB:                    db,
+		Auth:                  authSvc,
+		Wallet:                wallet,
+		Price:                 priceSvc,
+		Dispatcher:            dispatcher,
+		HostURL:               cfg.BaseURL,
+		WalletEncKey:          walletEncKey,
+		NotifyEncKey:          notifyEncKey,
+		RequiredConfirmations: cfg.RequiredConfirmations,
+		TransactionExpiry:     cfg.TransactionExpiry,
+		MockPayments:          cfg.MockPayments,
+		TrustProxy:            cfg.TrustProxy,
+		Log:                   log.Logger,
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	monitor := services.NewPaymentMonitor(db, wallet, cfg.RequiredConfirmations, log.Logger)
+	monitor := services.NewPaymentMonitor(db, wallet, cfg.RequiredConfirmations, dispatcher, log.Logger)
 	go monitor.Run(ctx)
+
+	worker := services.NewDeliveryWorker(db, notifyEncKey, log.Logger)
+	go worker.Run(ctx)
 
 	server := &http.Server{
 		Addr:    ":" + cfg.Port,

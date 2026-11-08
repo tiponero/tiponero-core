@@ -25,3 +25,9 @@ func UserIDFromContext(ctx context.Context) string {
 	userID, _ := ctx.Value(userIDKey).(string)
 	return userID
 }
+
+// ContextWithUserID attaches a user ID to a context. HTTP middleware uses it,
+// and tests use it to call a handler without a session.
+func ContextWithUserID(ctx context.Context, userID string) context.Context {
+	return context.WithValue(ctx, userIDKey, userID)
+}

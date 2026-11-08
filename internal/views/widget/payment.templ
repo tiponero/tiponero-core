@@ -19,6 +19,9 @@ templ Payment(tx *database.Transaction, widget *database.Widget, requiredConfirm
 						<div class="flex items-baseline justify-center gap-2">
 							<span class="text-2xl font-headline font-bold text-brand-500">{ components.FormatXMR(tx.Amount) }</span>
 						</div>
+						if tx.FiatAmount > 0 {
+							<p class="text-xs font-mono text-gray-400 dark:text-on-surface-variant mt-1">{ fmt.Sprintf("≈ %.2f %s at the rate locked when this request was created", tx.FiatAmount, tx.FiatCurrency) }</p>
+						}
 					} else {
 						<p class="text-gray-500 dark:text-on-surface-variant font-body">Any amount</p>
 					}
@@ -26,7 +29,7 @@ templ Payment(tx *database.Transaction, widget *database.Widget, requiredConfirm
 				<div class="flex justify-center mb-6">
 					<div class="bg-white p-3 rounded-lg">
 						<img
-							src={ fmt.Sprintf("/widget/qr/%s", tx.ID) }
+							src={ qrURL(tx) }
 							alt="QR Code"
 							class="w-48 h-48"
 						/>

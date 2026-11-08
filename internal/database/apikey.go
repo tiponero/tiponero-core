@@ -21,7 +21,7 @@ func (db *DB) ListAPIKeys(userID string) ([]APIKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var keys []APIKey
 	for rows.Next() {
@@ -47,7 +47,7 @@ func (db *DB) GetAPIKeysByPrefix(prefix string) ([]APIKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var keys []APIKey
 	for rows.Next() {

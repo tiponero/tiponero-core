@@ -9,7 +9,7 @@ import (
 
 func confirmationPercent(confirmations, required int) int {
 	if required <= 0 {
-		return 0
+		return 100
 	}
 	percent := confirmations * 100 / required
 	if percent > 100 {
@@ -18,11 +18,46 @@ func confirmationPercent(confirmations, required int) int {
 	return percent
 }
 
+// statusURL returns the polling endpoint for a transaction. Widget payments
+// and standalone payment requests use different routes.
+func statusURL(tx *database.Transaction) string {
+	if tx.WidgetID.Valid {
+		return fmt.Sprintf("/widget/%s/donation/%s/status", tx.WidgetID.String, tx.ID)
+	}
+	return fmt.Sprintf("/pay/%s/status", tx.ID)
+}
+
+func qrURL(tx *database.Transaction) string {
+	if tx.WidgetID.Valid {
+		return fmt.Sprintf("/widget/qr/%s", tx.ID)
+	}
+	return fmt.Sprintf("/pay/%s/qr", tx.ID)
+}
+
+func remaining(tx *database.Transaction) int64 {
+	if tx.Amount <= 0 {
+		return 0
+	}
+	if tx.ReceivedAmount >= tx.Amount {
+		return 0
+	}
+	return tx.Amount - tx.ReceivedAmount
+}
+
+func terminal(status database.TransactionStatus) bool {
+	switch status {
+	case database.StatusConfirmed, database.StatusExpired:
+		return true
+	default:
+		return false
+	}
+}
+
 templ Status(tx *database.Transaction, requiredConfirmations int, thankYouMessage string) {
 	<div
 		id="status"
-		if tx.Status != database.StatusConfirmed && tx.Status != database.StatusExpired {
-			hx-get={ fmt.Sprintf("/widget/%s/donation/%s/status", tx.WidgetID.String, tx.ID) }
+		if !terminal(tx.Status) {
+			hx-get={ statusURL(tx) }
 			hx-trigger="every 3s"
 			hx-swap="outerHTML"
 		}
@@ -53,14 +88,31 @@ templ Status(tx *database.Transaction, requiredConfirmations int, thankYouMessag
 					</div>
 					<p class="text-xs font-mono text-gray-400 dark:text-on-surface-variant uppercase tracking-widest">{ fmt.Sprintf("%d/%d confirmations", tx.Confirmations, requiredConfirmations) }</p>
 				</div>
-			case database.StatusUnderpaid:
+			case database.StatusPartial:
 				<div class="text-center py-4">
-					<span class="material-symbols-outlined text-red-400 text-3xl mb-2">error_outline</span>
-					<p class="text-sm font-headline font-bold text-gray-900 dark:text-on-surface">Payment amount is too low.</p>
+					<span class="material-symbols-outlined text-yellow-500 text-3xl mb-2">error_outline</span>
+					<p class="text-sm font-headline font-bold text-gray-900 dark:text-on-surface">Partial payment received</p>
 					<p class="text-xs font-mono text-gray-500 dark:text-on-surface-variant mt-1">
 						{ fmt.Sprintf("Required %s. Received %s.", components.FormatXMR(tx.Amount), components.FormatXMR(tx.ReceivedAmount)) }
 					</p>
-					<p class="text-xs text-gray-500 dark:text-on-surface-variant mt-1 font-body">Send the remaining amount to the same address.</p>
+					<p class="text-sm font-headline font-bold text-brand-500 mt-3">
+						{ fmt.Sprintf("Send %s more", components.FormatXMR(remaining(tx))) }
+					</p>
+					<div class="flex justify-center mt-4">
+						<div class="bg-white p-2 rounded-lg">
+							<img
+								src={ fmt.Sprintf("%s?v=%d", qrURL(tx), tx.ReceivedAmount) }
+								alt="Remaining amount QR code"
+								class="w-32 h-32"
+							/>
+						</div>
+					</div>
+				</div>
+			case database.StatusReverted:
+				<div class="text-center py-4">
+					<span class="material-symbols-outlined text-yellow-500 text-3xl mb-2">undo</span>
+					<p class="text-sm font-headline font-bold text-gray-900 dark:text-on-surface">Payment left the mempool</p>
+					<p class="text-xs font-mono text-gray-500 dark:text-on-surface-variant mt-1">If you already sent it, wait a moment. Tiponero keeps watching this address.</p>
 				</div>
 			case database.StatusConfirmed:
 				<div class="text-center py-4">
@@ -81,13 +133,35 @@ templ Status(tx *database.Transaction, requiredConfirmations int, thankYouMessag
 			case database.StatusExpired:
 				<div class="text-center py-4">
 					<span class="material-symbols-outlined text-gray-400 dark:text-on-surface-variant/60 text-3xl mb-2">timer_off</span>
-					if tx.IsPayment {
-						<p class="text-sm font-headline font-medium text-gray-500 dark:text-on-surface-variant">This payment request has expired.</p>
+					if tx.ReceivedAmount > 0 {
+						<p class="text-sm font-headline font-medium text-gray-500 dark:text-on-surface-variant">This request expired before the full amount arrived.</p>
+						<p class="text-xs font-mono text-gray-500 dark:text-on-surface-variant mt-1">{ fmt.Sprintf("Received %s.", components.FormatXMR(tx.ReceivedAmount)) }</p>
 					} else {
-						<p class="text-sm font-headline font-medium text-gray-500 dark:text-on-surface-variant">This donation request has expired.</p>
+						if tx.IsPayment {
+							<p class="text-sm font-headline font-medium text-gray-500 dark:text-on-surface-variant">This payment request has expired.</p>
+						} else {
+							<p class="text-sm font-headline font-medium text-gray-500 dark:text-on-surface-variant">This donation request has expired.</p>
+						}
+						<p class="text-xs font-mono text-gray-400 dark:text-on-surface-variant/50 mt-1 uppercase tracking-widest">No payment received within time limit</p>
 					}
-					<p class="text-xs font-mono text-gray-400 dark:text-on-surface-variant/50 mt-1 uppercase tracking-widest">No payment received within time limit</p>
 				</div>
+		}
+		if terminal(tx.Status) {
+			<script>
+				(function() {
+					try {
+						window.parent.postMessage({
+							source: 'tiponero',
+							type: 'tiponero:status',
+							status: { fmt.Sprintf("%q", string(tx.Status)) },
+							transaction_id: { fmt.Sprintf("%q", tx.ID) },
+							widget_id: { fmt.Sprintf("%q", tx.WidgetID.String) },
+							amount: { tx.Amount },
+							received_amount: { tx.ReceivedAmount }
+						}, '*');
+					} catch (e) {}
+				})();
+			</script>
 		}
 	</div>
 }

@@ -18,9 +18,8 @@ templ Admin(title string, rpcStatus monero.ConnectionStatus) {
 			<link rel="icon" type="image/png" sizes="16x16" href="/static/images/favicon/favicon-16x16.png"/>
 			<link rel="icon" type="image/x-icon" href="/static/images/favicon/favicon.ico"/>
 			<link rel="manifest" href="/static/images/favicon/site.webmanifest"/>
+			<link rel="stylesheet" href="/static/css/fonts.css"/>
 			<link rel="stylesheet" href="/static/css/output.css"/>
-			<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
-			<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 			<script src="/static/js/htmx.min.js"></script>
 			<script src="/static/js/alpine.min.js" defer></script>
 		</head>
@@ -48,6 +47,26 @@ templ Admin(title string, rpcStatus monero.ConnectionStatus) {
 				document.body.addEventListener('toast', function(e) {
 					Alpine.store('toast').show(e.detail.variant, e.detail.message);
 				});
+
+				// CSRF: the cookie is readable on purpose. The same value goes
+				// into every POST form and into every HTMX request header.
+				function csrfToken() {
+					var match = document.cookie.match(/(?:^|; )tiponero_csrf=([^;]*)/);
+					return match ? decodeURIComponent(match[1]) : '';
+				}
+				document.addEventListener('submit', function(e) {
+					var form = e.target;
+					if (!form || !form.method || form.method.toLowerCase() !== 'post') return;
+					if (form.querySelector('input[name="csrf_token"]')) return;
+					var input = document.createElement('input');
+					input.type = 'hidden';
+					input.name = 'csrf_token';
+					input.value = csrfToken();
+					form.appendChild(input);
+				}, true);
+				document.body.addEventListener('htmx:configRequest', function(e) {
+					e.detail.headers['X-CSRF-Token'] = csrfToken();
+				});
 			</script>
 			<header class="fixed top-0 w-full z-50 bg-surface-container-lowest/95 border-b border-outline-variant/15 backdrop-blur-md">
 				<div class="flex justify-between items-center w-full px-6 py-4 max-w-screen-2xl mx-auto">
@@ -60,6 +79,7 @@ templ Admin(title string, rpcStatus monero.ConnectionStatus) {
 							@navLink("Dashboard", "/admin", title == "Dashboard")
 							@navLink("Transactions", "/admin/transactions", title == "Transactions" || title == "Transaction")
 							@navLink("Widgets", "/admin/widgets", title == "Widgets")
+							@navLink("Notifications", "/admin/notifications", title == "Notifications")
 							@navLink("Settings", "/admin/settings", title == "Settings" || title == "Setup 2FA")
 						</nav>
 					</div>
@@ -94,6 +114,7 @@ templ Admin(title string, rpcStatus monero.ConnectionStatus) {
 					<a href="/admin" class="block font-headline tracking-tight font-medium text-secondary-fixed-dim hover:text-primary-container transition-colors">Dashboard</a>
 					<a href="/admin/transactions" class="block font-headline tracking-tight font-medium text-secondary-fixed-dim hover:text-primary-container transition-colors">Transactions</a>
 					<a href="/admin/widgets" class="block font-headline tracking-tight font-medium text-secondary-fixed-dim hover:text-primary-container transition-colors">Widgets</a>
+					<a href="/admin/notifications" class="block font-headline tracking-tight font-medium text-secondary-fixed-dim hover:text-primary-container transition-colors">Notifications</a>
 					<a href="/admin/settings" class="block font-headline tracking-tight font-medium text-secondary-fixed-dim hover:text-primary-container transition-colors">Settings</a>
 				</nav>
 			</div>

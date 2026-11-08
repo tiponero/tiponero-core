@@ -19,12 +19,18 @@ templ SectionCard(title, icon string) {
 }
 
 templ FormField(id, label, inputType, value, placeholder string, attrs templ.Attributes) {
+	@FormFieldNamed(id, id, label, inputType, value, placeholder, attrs)
+}
+
+// FormFieldNamed separates the DOM id from the submitted name. Repeated forms
+// on one page need unique ids but the same field names.
+templ FormFieldNamed(id, name, label, inputType, value, placeholder string, attrs templ.Attributes) {
 	<div class="space-y-1.5">
 		<label for={ id } class="text-xs font-mono uppercase tracking-widest text-on-surface-variant">{ label }</label>
 		<input
 			type={ inputType }
 			id={ id }
-			name={ id }
+			name={ name }
 			value={ value }
 			placeholder={ placeholder }
 			class="w-full bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30"

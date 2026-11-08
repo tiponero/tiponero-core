@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -29,21 +28,29 @@ type AdminHandler struct {
 	db                    *database.DB
 	auth                  *auth.Service
 	wallet                *monero.ClientHolder
+	price                 PriceConverter
+	dispatcher            *services.Dispatcher
 	walletEncKey          []byte
+	notifyEncKey          []byte
 	log                   zerolog.Logger
 	hostURL               string
 	requiredConfirmations int
+	mockPayments          bool
 }
 
-func NewAdminHandler(db *database.DB, authSvc *auth.Service, wallet *monero.ClientHolder, walletEncKey []byte, hostURL string, requiredConfirmations int, log zerolog.Logger) *AdminHandler {
+func NewAdminHandler(d Deps) *AdminHandler {
 	return &AdminHandler{
-		db:                    db,
-		auth:                  authSvc,
-		wallet:                wallet,
-		walletEncKey:          walletEncKey,
-		hostURL:               hostURL,
-		requiredConfirmations: requiredConfirmations,
-		log:                   log.With().Str("component", "admin").Logger(),
+		db:                    d.DB,
+		auth:                  d.Auth,
+		wallet:                d.Wallet,
+		price:                 d.Price,
+		dispatcher:            d.Dispatcher,
+		walletEncKey:          d.WalletEncKey,
+		notifyEncKey:          d.NotifyEncKey,
+		log:                   d.Log.With().Str("component", "admin").Logger(),
+		hostURL:               d.HostURL,
+		requiredConfirmations: d.RequiredConfirmations,
+		mockPayments:          d.MockPayments,
 	}
 }
 
@@ -150,7 +157,7 @@ func (h *AdminHandler) Transactions(w http.ResponseWriter, r *http.Request) {
 
 	status := database.TransactionStatus(statusFilter)
 
-	total, err := h.db.CountTransactions(userID, status)
+	total, err := h.db.CountTransactions(userID, database.TransactionFilter{Status: status})
 	if err != nil {
 		h.log.Error().Err(err).Msg("failed to count transactions")
 		http.Error(w, "Failed to load transactions", http.StatusInternalServerError)
@@ -202,7 +209,7 @@ func (h *AdminHandler) TransactionDetail(w http.ResponseWriter, r *http.Request)
 		widget, _ = h.db.GetWidget(tx.WidgetID.String)
 	}
 
-	render(r.Context(), w, adminviews.TransactionDetail(tx, widget, h.requiredConfirmations, h.wallet.Status()), h.log)
+	render(r.Context(), w, adminviews.TransactionDetail(tx, widget, h.requiredConfirmations, h.wallet.Status(), h.mockPayments), h.log)
 }
 
 func (h *AdminHandler) ExportCSV(w http.ResponseWriter, r *http.Request) {
@@ -340,10 +347,15 @@ func (h *AdminHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AdminHandler) UpdateWallet(w http.ResponseWriter, r *http.Request) {
+	if r.FormValue("action") == "create" {
+		h.CreateViewOnlyWallet(w, r)
+		return
+	}
+
 	userID := auth.UserIDFromContext(r.Context())
 	walletCfg := &database.WalletConfig{
 		UserID:         userID,
-		RPCURL:         r.FormValue("rpc_url"),
+		RPCURL:         monero.NormalizeRPCURL(r.FormValue("rpc_url")),
 		RPCUser:        r.FormValue("rpc_user"),
 		RPCPassword:    r.FormValue("rpc_password"),
 		WalletFile:     r.FormValue("wallet_file"),
@@ -477,83 +489,24 @@ func (h *AdminHandler) WidgetList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render(r.Context(), w, adminviews.Widgets(widgets, h.hostURL, h.wallet.Status()), h.log)
+	render(r.Context(), w, adminviews.Widgets(widgets, h.hostURL, h.wallet.Status(), h.requiredConfirmations), h.log)
 }
 
 func (h *AdminHandler) CreateWidget(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 
-	mode := parseMode(r.FormValue("mode"))
-	name := strings.TrimSpace(r.FormValue("name"))
-	if name == "" {
-		http.Error(w, "Widget name is required", http.StatusBadRequest)
-		return
-	}
-
 	widget := &database.Widget{
-		UserID:          userID,
-		Name:            name,
-		Mode:            mode,
-		ButtonText:      r.FormValue("button_text"),
-		CustomMessage:   r.FormValue("custom_message"),
-		PrimaryColor:    r.FormValue("primary_color"),
-		Theme:           parseTheme(r.FormValue("theme")),
-		ShowStats:       r.FormValue("show_stats") == "on",
-		RedirectURL:     strings.TrimSpace(r.FormValue("redirect_url")),
-		ThankYouMessage: strings.TrimSpace(r.FormValue("thank_you_message")),
-		CreatedAt:       time.Now().Unix(),
+		UserID:    userID,
+		CreatedAt: time.Now().Unix(),
 	}
-	widget.UpdatedAt = widget.CreatedAt
 
-	if widget.ButtonText == "" {
-		if mode == database.ModePayment {
-			widget.ButtonText = "Pay"
-		} else {
-			widget.ButtonText = "Donate"
-		}
-	}
-	if widget.CustomMessage == "" {
-		widget.CustomMessage = "Your support is appreciated!"
-	}
-	if widget.ThankYouMessage == "" {
-		if mode == database.ModePayment {
-			widget.ThankYouMessage = "Thank you for your payment!"
-		} else {
-			widget.ThankYouMessage = "Thank you for your donation!"
-		}
-	}
-	if widget.PrimaryColor == "" {
-		widget.PrimaryColor = "#ff6600"
-	} else if !validHexColor.MatchString(widget.PrimaryColor) {
-		http.Error(w, "Invalid color format, expected #RRGGBB", http.StatusBadRequest)
+	if err := h.populateWidgetFromForm(widget, r); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
-	if mode == database.ModePayment {
-		presetAmounts := r.FormValue("preset_amounts")
-		var amounts []float64
-		if err := json.Unmarshal([]byte(presetAmounts), &amounts); err != nil || len(amounts) != 1 || amounts[0] <= 0 {
-			http.Error(w, "Payment mode requires exactly one preset amount greater than zero", http.StatusBadRequest)
-			return
-		}
-		widget.PresetAmounts = presetAmounts
-	} else {
-		presetAmounts := r.FormValue("preset_amounts")
-		if presetAmounts != "" {
-			var amounts []float64
-			if err := json.Unmarshal([]byte(presetAmounts), &amounts); err == nil {
-				valid := make([]float64, 0, len(amounts))
-				for _, a := range amounts {
-					if a > 0 {
-						valid = append(valid, a)
-					}
-				}
-				if len(valid) > 0 {
-					b, _ := json.Marshal(valid)
-					widget.PresetAmounts = string(b)
-				}
-			}
-		}
+	if err := validateWidgetPrice(widget); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	if err := h.db.CreateWidget(widget); err != nil {
@@ -628,7 +581,7 @@ func (h *AdminHandler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
 
-	fmt.Fprintf(w, `<div class="mt-4 p-4 rounded-xl bg-primary-container/10 border border-tertiary" x-data="{ copied: false }"`+
+	_, _ = fmt.Fprintf(w, `<div class="mt-4 p-4 rounded-xl bg-primary-container/10 border border-tertiary" x-data="{ copied: false }"`+
 		` x-init="setTimeout(function(){ $el.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, 100)">`+
 		`<div class="flex items-center justify-between mb-2">`+
 		`<span class="text-xs font-mono uppercase tracking-widest text-primary-container">New API Key — Copy it now, it won't be shown again</span>`+
@@ -642,7 +595,7 @@ func (h *AdminHandler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		`</div></div>`, rawKey)
 
 	expiresFormatted := time.Unix(key.ExpiresAt, 0).Format("Jan 2, 2006")
-	fmt.Fprintf(w, `<div id="api-key-list" hx-swap-oob="afterbegin">`+
+	_, _ = fmt.Fprintf(w, `<div id="api-key-list" hx-swap-oob="afterbegin">`+
 		`<div id="api-key-%s" class="flex items-center justify-between p-3 rounded-lg bg-surface-container-low" x-data="{ confirmDelete: false }">`+
 		`<div class="flex items-center gap-4 min-w-0"><div class="min-w-0">`+
 		`<p class="text-sm font-bold text-on-surface truncate">%s</p>`+
@@ -661,7 +614,7 @@ func (h *AdminHandler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		`</form></div></template></div></div></div>`,
 		key.ID, name, prefix, expiresFormatted, key.ID)
 
-	fmt.Fprint(w, `<p id="api-key-empty" hx-swap-oob="outerHTML"></p>`)
+	_, _ = fmt.Fprint(w, `<p id="api-key-empty" hx-swap-oob="outerHTML"></p>`)
 }
 
 func (h *AdminHandler) DeleteAPIKey(w http.ResponseWriter, r *http.Request) {

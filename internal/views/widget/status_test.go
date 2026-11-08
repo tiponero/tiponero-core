@@ -51,18 +51,18 @@ func TestStatusRendersThankYouMessage(t *testing.T) {
 	}
 }
 
-func TestStatusRendersUnderpaid(t *testing.T) {
+func TestStatusRendersPartial(t *testing.T) {
 	tx := &database.Transaction{
 		ID:             "tx",
 		WidgetID:       sql.NullString{String: "widget", Valid: true},
-		Status:         database.StatusUnderpaid,
+		Status:         database.StatusPartial,
 		Amount:         100000000000,
 		ReceivedAmount: 50000000000,
 	}
 	html := renderStatus(t, tx, 10, "")
 
-	if !strings.Contains(html, "Payment amount is too low") {
-		t.Fatalf("missing underpaid message:\n%s", html)
+	if !strings.Contains(html, "Partial payment received") {
+		t.Fatalf("missing partial message:\n%s", html)
 	}
 	if !strings.Contains(html, "Required 0.1 XMR. Received 0.05 XMR.") {
 		t.Fatalf("missing amount details:\n%s", html)

@@ -194,7 +194,7 @@ flowchart TB
     end
 
     subgraph wallethost["Wallet host, private network"]
-        wrpc["monero-wallet-rpc<br/>:18082"]:::external
+        wrpc["monero-wallet-rpc<br/>:18088"]:::external
         node["monerod<br/>:18081 RPC<br/>:18080 P2P"]:::external
     end
 
@@ -236,7 +236,7 @@ The Docker image uses a multi-stage build. The runtime stage is `gcr.io/distrole
 |---|---|---|
 | Browser to reverse proxy | 443 | HTTPS |
 | Reverse proxy to app | 8080 | HTTP |
-| App to wallet RPC | 18082 | HTTP JSON-RPC |
+| App to wallet RPC | 18088 | HTTP JSON-RPC |
 | Wallet RPC to monerod | 18081 | HTTP JSON-RPC |
 | monerod to Monero network | 18080 | P2P |
 | App to CoinGecko | 443 | HTTPS |
@@ -260,10 +260,10 @@ The app does not terminate TLS. Put it behind a reverse proxy and set `BASE_URL`
 Security properties of the current design:
 
 - Session cookies use `HttpOnly`, `SameSite=Lax`, and `Secure` when `BASE_URL` starts with `https`.
-- Admin forms have no CSRF token. `SameSite=Lax` blocks cross-site form posts in current browsers.
+- Admin forms carry a CSRF token that matches the `tiponero_csrf` cookie. The session cookie also uses `SameSite=Lax`.
 - The app sets no security headers. Do not add `X-Frame-Options` for `/widget/*`, because sites embed the widget in iframes.
-- Admin login has no rate limit or lockout.
-- The public widget and badge endpoints have no rate limit.
+- A per-IP rate limiter covers login, the admin panel, widget creation, and the API.
+- Badge and status reads are not rate limited.
 - `monero-wallet-rpc` must stay on a private network. It holds the wallet keys and accepts commands.
 
 ## 7. Lifecycle
@@ -312,7 +312,7 @@ Security properties of the current design:
 - The admin transaction list shows 10 rows per page. The REST API defaults to 20 rows and caps at 100.
 - Each open payment page polls the status endpoint every 3 seconds.
 - Transactions are never deleted. There is no retention job.
-- There is no rate limit on the login form, the widget endpoints, or the API.
+- Rate limits are in memory and reset on restart.
 
 ## 10. Operations checklist
 

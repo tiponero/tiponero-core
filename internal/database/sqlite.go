@@ -28,8 +28,8 @@ func NewDB(path string) (*DB, error) {
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
 	}
 
-	if err := db.verifySchema(); err != nil {
-		return nil, err
+	if err := db.migrate(); err != nil {
+		return nil, fmt.Errorf("failed to migrate schema: %w", err)
 	}
 
 	return db, nil
@@ -120,6 +120,51 @@ func (db *DB) initSchema() error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_api_key_prefix ON api_key(prefix);
 	CREATE INDEX IF NOT EXISTS idx_api_key_user ON api_key(user_id);
+
+	CREATE TABLE IF NOT EXISTS webhook (
+		id         TEXT PRIMARY KEY DEFAULT ` + uuidv4 + `,
+		user_id    TEXT NOT NULL REFERENCES user(id),
+		name       TEXT NOT NULL,
+		url        TEXT NOT NULL,
+		secret_enc TEXT NOT NULL,
+		events     TEXT NOT NULL,
+		active     INTEGER NOT NULL DEFAULT 1,
+		created_at INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_webhook_user ON webhook(user_id);
+
+	CREATE TABLE IF NOT EXISTS notification_channel (
+		id         TEXT PRIMARY KEY DEFAULT ` + uuidv4 + `,
+		user_id    TEXT NOT NULL REFERENCES user(id),
+		type       TEXT NOT NULL,
+		name       TEXT NOT NULL,
+		config_enc TEXT NOT NULL,
+		events     TEXT NOT NULL,
+		active     INTEGER NOT NULL DEFAULT 1,
+		created_at INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_channel_user ON notification_channel(user_id);
+
+	CREATE TABLE IF NOT EXISTS notification_delivery (
+		id            TEXT PRIMARY KEY DEFAULT ` + uuidv4 + `,
+		user_id       TEXT NOT NULL REFERENCES user(id),
+		kind          TEXT NOT NULL,
+		target_id     TEXT NOT NULL,
+		event         TEXT NOT NULL,
+		event_id      TEXT NOT NULL,
+		payload       TEXT NOT NULL,
+		status        TEXT NOT NULL DEFAULT 'pending',
+		attempts      INTEGER NOT NULL DEFAULT 0,
+		response_code INTEGER NOT NULL DEFAULT 0,
+		last_error    TEXT,
+		next_retry_at INTEGER NOT NULL,
+		created_at    INTEGER NOT NULL,
+		delivered_at  INTEGER NOT NULL DEFAULT 0
+	);
+	CREATE INDEX IF NOT EXISTS idx_delivery_due ON notification_delivery(status, next_retry_at);
+	CREATE INDEX IF NOT EXISTS idx_delivery_target ON notification_delivery(target_id);
 	`
 
 	if _, err := db.conn.Exec(schema); err != nil {
@@ -146,31 +191,76 @@ func sqliteDSN(path string) string {
 	return path + separator + "_foreign_keys=on"
 }
 
-// verifySchema checks for columns that CREATE TABLE IF NOT EXISTS cannot add to
-// an existing database. There is no migration runner: apply the ALTER manually.
-func (db *DB) verifySchema() error {
-	rows, err := db.conn.Query(`PRAGMA table_info("transaction")`)
-	if err != nil {
-		return fmt.Errorf("inspect transaction schema: %w", err)
+// migrate adds columns that CREATE TABLE IF NOT EXISTS cannot add to an
+// existing database. Every step is idempotent, so it runs on each start.
+func (db *DB) migrate() error {
+	columns := map[string]map[string]string{
+		"widget": {
+			"confirmations":  "INTEGER NOT NULL DEFAULT -1",
+			"price_fiat":     "REAL NOT NULL DEFAULT 0",
+			"price_currency": "TEXT NOT NULL DEFAULT ''",
+			"goal_amount":    "REAL NOT NULL DEFAULT 0",
+			"goal_currency":  "TEXT NOT NULL DEFAULT 'XMR'",
+			"goal_deadline":  "INTEGER NOT NULL DEFAULT 0",
+		},
+		"transaction": {
+			"received_amount":        "INTEGER NOT NULL DEFAULT 0",
+			"description":            "TEXT",
+			"redirect_url":           "TEXT",
+			"callback_url":           "TEXT",
+			"metadata":               "TEXT",
+			"confirmations_required": "INTEGER NOT NULL DEFAULT -1",
+			"is_test":                "INTEGER NOT NULL DEFAULT 0",
+			"reverted_at":            "INTEGER NOT NULL DEFAULT 0",
+		},
 	}
-	defer rows.Close()
 
+	// Rename the old status. Underpaid and partial were the same state, and
+	// two names for one state confused the API and the UI.
+	if _, err := db.conn.Exec(`UPDATE "transaction" SET status = 'partial' WHERE status = 'underpaid'`); err != nil {
+		return fmt.Errorf("rename underpaid status: %w", err)
+	}
+	if _, err := db.conn.Exec(`UPDATE "transaction" SET status = 'expired' WHERE status = 'expired_partial'`); err != nil {
+		return fmt.Errorf("merge expired_partial into expired: %w", err)
+	}
+
+	for table, wanted := range columns {
+		existing, err := db.tableColumns(table)
+		if err != nil {
+			return err
+		}
+		for name, definition := range wanted {
+			if existing[name] {
+				continue
+			}
+			stmt := fmt.Sprintf(`ALTER TABLE "%s" ADD COLUMN "%s" %s`, table, name, definition)
+			if _, err := db.conn.Exec(stmt); err != nil {
+				return fmt.Errorf("add %s.%s: %w", table, name, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (db *DB) tableColumns(table string) (map[string]bool, error) {
+	rows, err := db.conn.Query(fmt.Sprintf(`PRAGMA table_info("%s")`, table))
+	if err != nil {
+		return nil, fmt.Errorf("inspect %s schema: %w", table, err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	columns := make(map[string]bool)
 	for rows.Next() {
 		var cid, notNull, primaryKey int
 		var name, columnType string
 		var defaultValue sql.NullString
 		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
-			return fmt.Errorf("scan transaction schema: %w", err)
+			return nil, fmt.Errorf("scan %s schema: %w", table, err)
 		}
-		if name == "received_amount" {
-			return nil
-		}
+		columns[name] = true
 	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("read transaction schema: %w", err)
-	}
-
-	return fmt.Errorf(`transaction table is missing received_amount; run: ALTER TABLE "transaction" ADD COLUMN received_amount INTEGER NOT NULL DEFAULT 0`)
+	return columns, rows.Err()
 }
 
 func nullStr(s string) any {

@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"mime"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/a-h/templ"
@@ -19,16 +20,36 @@ import (
 	"github.com/tiponero/tiponero-core/static"
 )
 
-func NewRouter(db *database.DB, authSvc *auth.Service, wallet *monero.ClientHolder, price *services.PriceService, hostURL string, walletEncKey []byte, requiredConfirmations int, transactionExpiry time.Duration, log zerolog.Logger) *chi.Mux {
-	admin := NewAdminHandler(db, authSvc, wallet, walletEncKey, hostURL, requiredConfirmations, log)
-	widget := NewWidgetHandler(db, wallet, price, hostURL, requiredConfirmations, transactionExpiry, log)
-	api := NewAPIHandler(db, wallet, walletEncKey, log)
-	apiAuth := auth.NewAPIKeyAuthenticator(db)
+// Deps holds the shared dependencies of every HTTP handler. One struct keeps
+// the router readable as the feature set grows.
+type Deps struct {
+	DB                    *database.DB
+	Auth                  *auth.Service
+	Wallet                *monero.ClientHolder
+	Price                 PriceConverter
+	Dispatcher            *services.Dispatcher
+	HostURL               string
+	WalletEncKey          []byte
+	NotifyEncKey          []byte
+	RequiredConfirmations int
+	TransactionExpiry     time.Duration
+	MockPayments          bool
+	TrustProxy            bool
+	Log                   zerolog.Logger
+}
+
+func NewRouter(d Deps) *chi.Mux {
+	admin := NewAdminHandler(d)
+	widget := NewWidgetHandler(d)
+	api := NewAPIHandler(d)
+	apiAuth := auth.NewAPIKeyAuthenticator(d.DB)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(csrfCookie(strings.HasPrefix(d.HostURL, "https://")))
+	r.Use(rateLimit(d.TrustProxy, d.Log))
 
 	staticFS, _ := fs.Sub(static.Assets, ".")
 	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
@@ -39,17 +60,19 @@ func NewRouter(db *database.DB, authSvc *auth.Service, wallet *monero.ClientHold
 	})
 
 	r.Route("/admin", func(r chi.Router) {
+		r.Use(csrfProtect)
 		r.Get("/login", admin.LoginPage)
 		r.Post("/login", admin.Login)
 		r.Post("/login/totp", admin.VerifyTOTP)
 
 		r.Group(func(r chi.Router) {
-			r.Use(authSvc.RequireAuth)
+			r.Use(d.Auth.RequireAuth)
 			r.Post("/logout", admin.Logout)
 			r.Get("/", admin.Dashboard)
 			r.Get("/transactions", admin.Transactions)
 			r.Get("/transactions/export", admin.ExportCSV)
 			r.Get("/transactions/{id}", admin.TransactionDetail)
+			r.Post("/transactions/{id}/mock-pay", admin.MockPay)
 			r.Get("/settings", admin.SettingsPage)
 			r.Post("/settings/profile", admin.UpdateProfile)
 			r.Post("/settings/password", admin.UpdatePassword)
@@ -59,9 +82,20 @@ func NewRouter(db *database.DB, authSvc *auth.Service, wallet *monero.ClientHold
 			r.Post("/settings/totp/disable", admin.TOTPDisable)
 			r.Get("/widgets", admin.WidgetList)
 			r.Post("/widgets", admin.CreateWidget)
+			r.Post("/widgets/{id}/update", admin.UpdateWidget)
 			r.Post("/widgets/{id}/delete", admin.DeleteWidget)
 			r.Post("/settings/api-keys", admin.CreateAPIKey)
 			r.Post("/settings/api-keys/{id}/delete", admin.DeleteAPIKey)
+			r.Get("/notifications", admin.NotificationsPage)
+			r.Post("/notifications/webhooks", admin.CreateWebhook)
+			r.Post("/notifications/webhooks/{id}/update", admin.UpdateWebhook)
+			r.Post("/notifications/webhooks/{id}/delete", admin.DeleteWebhook)
+			r.Post("/notifications/webhooks/{id}/rotate", admin.RotateWebhookSecret)
+			r.Post("/notifications/webhooks/{id}/test", admin.TestWebhook)
+			r.Post("/notifications/channels", admin.CreateChannel)
+			r.Post("/notifications/channels/{id}/update", admin.UpdateChannel)
+			r.Post("/notifications/channels/{id}/delete", admin.DeleteChannel)
+			r.Post("/notifications/channels/{id}/test", admin.TestChannel)
 		})
 	})
 
@@ -73,6 +107,7 @@ func NewRouter(db *database.DB, authSvc *auth.Service, wallet *monero.ClientHold
 		r.Patch("/widgets/{id}", api.UpdateWidget)
 		r.Delete("/widgets/{id}", api.DeleteWidget)
 		r.Get("/transactions", api.ListTransactions)
+		r.Post("/transactions", api.CreateTransaction)
 		r.Get("/transactions/{id}", api.GetTransaction)
 		r.Get("/user", api.GetUser)
 		r.Patch("/user", api.UpdateUser)
@@ -82,6 +117,9 @@ func NewRouter(db *database.DB, authSvc *auth.Service, wallet *monero.ClientHold
 		r.Get("/stats", api.GetStats)
 		r.Get("/keys", api.ListAPIKeys)
 		r.Delete("/keys/{id}", api.DeleteAPIKey)
+		r.Get("/webhooks", api.ListWebhooks)
+		r.Post("/webhooks", api.CreateWebhook)
+		r.Delete("/webhooks/{id}", api.DeleteWebhook)
 	})
 
 	r.Route("/widget", func(r chi.Router) {
@@ -90,6 +128,13 @@ func NewRouter(db *database.DB, authSvc *auth.Service, wallet *monero.ClientHold
 		r.Post("/{widgetID}/donate", widget.CreateTransaction)
 		r.Get("/{widgetID}/donation/{donationID}/status", widget.TransactionStatus)
 		r.Get("/qr/{donationID}", widget.QRCode)
+	})
+
+	// Standalone payment pages serve transactions that have no widget.
+	r.Route("/pay", func(r chi.Router) {
+		r.Get("/{transactionID}", widget.StandalonePayment)
+		r.Get("/{transactionID}/status", widget.StandaloneStatus)
+		r.Get("/{transactionID}/qr", widget.StandaloneQRCode)
 	})
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {

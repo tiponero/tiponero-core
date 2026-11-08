@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"github.com/tiponero/tiponero-core/internal/database"
+	"github.com/tiponero/tiponero-core/internal/views/components"
 	"github.com/tiponero/tiponero-core/internal/views/layouts"
 )
 
@@ -31,15 +32,15 @@ func formatPresetAmount(amount float64) string {
 	return strconv.FormatFloat(amount, 'f', -1, 64)
 }
 
-templ Home(w *database.Widget, user *database.User) {
+templ Home(w *database.Widget, user *database.User, goalReached int64, goalTarget int64) {
 	if w.Mode == database.ModePayment {
-		@paymentHome(w, user)
+		@paymentHome(w, user, goalReached, goalTarget)
 	} else {
-		@donationHome(w, user)
+		@donationHome(w, user, goalReached, goalTarget)
 	}
 }
 
-templ donationHome(w *database.Widget, user *database.User) {
+templ donationHome(w *database.Widget, user *database.User, goalReached int64, goalTarget int64) {
 	@layouts.WidgetPage(user.DisplayName+" - Donate", w.Theme, w.PrimaryColor) {
 		<div class="w-full max-w-sm mx-auto">
 			<div class="bg-gray-50 dark:bg-surface-container-low/80 dark:backdrop-blur rounded-xl p-8 dark:shadow-[inset_1px_1px_0_0_rgba(57,57,57,0.1)]">
@@ -54,7 +55,8 @@ templ donationHome(w *database.Widget, user *database.User) {
 						<p class="text-sm text-gray-500 dark:text-on-surface-variant font-body">{ user.Bio }</p>
 					}
 				</div>
-				<p class="text-gray-600 dark:text-secondary-fixed-dim text-center mb-8 font-body text-sm leading-relaxed">{ w.CustomMessage }</p>
+				<p class="text-gray-600 dark:text-secondary-fixed-dim text-center mb-6 font-body text-sm leading-relaxed">{ w.CustomMessage }</p>
+				@goalBlock(w, goalReached, goalTarget)
 				<form
 					method="POST"
 					action={ templ.SafeURL("/widget/" + w.ID + "/donate") }
@@ -87,7 +89,7 @@ templ donationHome(w *database.Widget, user *database.User) {
 							x-model="amount"
 							step="0.000000000001"
 							min="0"
-							placeholder="Custom XMR amount (empty = any)"
+							placeholder="Amount"
 							class="w-full bg-gray-100 dark:bg-surface-container-highest border-none text-gray-900 dark:text-on-surface p-3 font-mono text-sm text-center rounded-md focus:outline-none focus:ring-1 focus:ring-brand-500/30"
 						/>
 					</div>
@@ -96,13 +98,13 @@ templ donationHome(w *database.Widget, user *database.User) {
 						<input
 							type="text"
 							name="donor_name"
-							placeholder="Your name (optional)"
+							placeholder="Your name"
 							class="w-full bg-gray-100 dark:bg-surface-container-highest border-none text-gray-900 dark:text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-brand-500/30"
 						/>
 						<input
 							type="text"
 							name="note"
-							placeholder="Message (optional)"
+							placeholder="Message"
 							class="w-full bg-gray-100 dark:bg-surface-container-highest border-none text-gray-900 dark:text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-brand-500/30"
 						/>
 					</div>
@@ -118,7 +120,7 @@ templ donationHome(w *database.Widget, user *database.User) {
 	}
 }
 
-templ paymentHome(w *database.Widget, user *database.User) {
+templ paymentHome(w *database.Widget, user *database.User, goalReached int64, goalTarget int64) {
 	@layouts.WidgetPage(user.DisplayName+" - Pay", w.Theme, w.PrimaryColor) {
 		<div class="w-full max-w-sm mx-auto">
 			<div class="bg-gray-50 dark:bg-surface-container-low/80 dark:backdrop-blur rounded-xl p-8 dark:shadow-[inset_1px_1px_0_0_rgba(57,57,57,0.1)]">
@@ -134,22 +136,33 @@ templ paymentHome(w *database.Widget, user *database.User) {
 					}
 				</div>
 				<p class="text-gray-600 dark:text-secondary-fixed-dim text-center mb-6 font-body text-sm leading-relaxed">{ w.CustomMessage }</p>
+				@goalBlock(w, goalReached, goalTarget)
 				<div class="text-center mb-6">
-					<div class="flex items-baseline justify-center gap-2">
-						<span class="text-3xl font-headline font-bold text-brand-500">{ formatPresetAmount(widgetPresetAmounts(w)[0]) }</span>
-						<span class="text-sm font-mono text-gray-400 dark:text-on-surface-variant uppercase">XMR</span>
-					</div>
+					if w.PriceFiat > 0 {
+						<div class="flex items-baseline justify-center gap-2">
+							<span class="text-3xl font-headline font-bold text-brand-500">{ fmt.Sprintf("%.2f", w.PriceFiat) }</span>
+							<span class="text-sm font-mono text-gray-400 dark:text-on-surface-variant uppercase">{ w.PriceCurrency }</span>
+						</div>
+						<p class="text-xs font-mono text-gray-400 dark:text-on-surface-variant mt-1">The XMR amount is locked when you continue</p>
+					} else if len(widgetPresetAmounts(w)) > 0 {
+						<div class="flex items-baseline justify-center gap-2">
+							<span class="text-3xl font-headline font-bold text-brand-500">{ formatPresetAmount(widgetPresetAmounts(w)[0]) }</span>
+							<span class="text-sm font-mono text-gray-400 dark:text-on-surface-variant uppercase">XMR</span>
+						</div>
+					}
 				</div>
 				<form
 					method="POST"
 					action={ templ.SafeURL("/widget/" + w.ID + "/donate") }
 					class="space-y-5"
 				>
-					<input type="hidden" name="amount" value={ formatPresetAmount(widgetPresetAmounts(w)[0]) }/>
+					if len(widgetPresetAmounts(w)) > 0 {
+						<input type="hidden" name="amount" value={ formatPresetAmount(widgetPresetAmounts(w)[0]) }/>
+					}
 					<input
 						type="text"
 						name="note"
-						placeholder="Reference (optional)"
+						placeholder="Reference"
 						class="w-full bg-gray-100 dark:bg-surface-container-highest border-none text-gray-900 dark:text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-brand-500/30"
 					/>
 					<button
@@ -162,4 +175,32 @@ templ paymentHome(w *database.Widget, user *database.User) {
 			</div>
 		</div>
 	}
+}
+
+templ goalBlock(w *database.Widget, reached int64, target int64) {
+	if target > 0 {
+		<div class="mb-6">
+			<div class="flex items-center justify-between text-xs font-mono uppercase tracking-widest text-gray-400 dark:text-on-surface-variant mb-2">
+				<span>Goal</span>
+				<span>{ goalPercent(reached, target) }%</span>
+			</div>
+			<div class="w-full bg-gray-200 dark:bg-surface-container-high rounded-md h-2 mb-2">
+				<div class="bg-brand-500 h-2 rounded-md transition-all duration-500" style={ fmt.Sprintf("width: %d%%", goalPercent(reached, target)) }></div>
+			</div>
+			<p class="text-xs font-mono text-gray-500 dark:text-on-surface-variant">
+				{ fmt.Sprintf("%s of %g %s raised", components.FormatXMR(reached), w.GoalAmount, w.GoalCurrency) }
+			</p>
+		</div>
+	}
+}
+
+func goalPercent(reached, target int64) int {
+	if target <= 0 {
+		return 0
+	}
+	percent := int(reached * 100 / target)
+	if percent > 100 {
+		return 100
+	}
+	return percent
 }

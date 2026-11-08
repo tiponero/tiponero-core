@@ -10,11 +10,12 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/tiponero/tiponero-core/internal/database"
 	"github.com/tiponero/tiponero-core/internal/monero"
 	"github.com/tiponero/tiponero-core/internal/views/components"
 	"github.com/tiponero/tiponero-core/internal/views/layouts"
-	"time"
 )
 
 func Settings(user *database.User, wallet *database.WalletConfig, status monero.ConnectionStatus, apiKeys []database.APIKey) templ.Component {
@@ -54,7 +55,7 @@ func Settings(user *database.User, wallet *database.WalletConfig, status monero.
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, " <div class=\"grid grid-cols-1 lg:grid-cols-2 gap-8\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, " <div class=\"space-y-8\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -70,7 +71,7 @@ func Settings(user *database.User, wallet *database.WalletConfig, status monero.
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<form hx-post=\"/admin/settings/profile\" hx-swap=\"none\" class=\"space-y-5 flex-1 flex flex-col\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<form hx-post=\"/admin/settings/profile\" hx-swap=\"none\" class=\"space-y-5\"><div class=\"grid grid-cols-1 md:grid-cols-2 gap-5\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -78,11 +79,11 @@ func Settings(user *database.User, wallet *database.WalletConfig, status monero.
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.FormField("display_name", "Display Name", "text", user.DisplayName, "Your public display name", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.FormField("display_name", "Display name", "text", user.DisplayName, "Your public display name", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.FormTextarea("bio", "Bio", user.Bio, "Tell supporters a bit about yourself", 3, templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -90,15 +91,19 @@ func Settings(user *database.User, wallet *database.WalletConfig, status monero.
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"flex-1\"></div>")
+				templ_7745c5c3_Err = components.FormTextarea("bio", "Bio", user.Bio, "Tell supporters about yourself", 3, templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.PrimaryButton("Save Profile", false).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div class=\"flex justify-end\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</form>")
+				templ_7745c5c3_Err = components.PrimaryButton("Save profile", false).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div></form>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -120,39 +125,35 @@ func Settings(user *database.User, wallet *database.WalletConfig, status monero.
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<form hx-post=\"/admin/settings/wallet\" hx-swap=\"none\" class=\"space-y-5 flex-1 flex flex-col\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<form hx-post=\"/admin/settings/wallet\" hx-swap=\"none\" class=\"space-y-5\"><div class=\"grid grid-cols-1 md:grid-cols-3 gap-5\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.FormField("rpc_url", "RPC URL", "url", wallet.RPCURL, "http://localhost:18083", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.FormField("rpc_url", "RPC URL", "url", wallet.RPCURL, "http://127.0.0.1:18088", templ.Attributes{"required": true}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div class=\"grid grid-cols-2 gap-4\">")
+				templ_7745c5c3_Err = components.FormField("rpc_user", "RPC user", "text", wallet.RPCUser, "", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.FormField("rpc_user", "RPC User", "text", wallet.RPCUser, "optional", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.FormField("rpc_password", "RPC password", "password", wallet.RPCPassword, "", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.FormField("rpc_password", "RPC Password", "password", wallet.RPCPassword, "optional", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</div><div class=\"grid grid-cols-1 md:grid-cols-2 gap-5\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</div><div class=\"grid grid-cols-2 gap-4\">")
+				templ_7745c5c3_Err = components.FormField("wallet_file", "Wallet file", "text", wallet.WalletFile, "", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.FormField("wallet_file", "Wallet File", "text", wallet.WalletFile, "optional", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.FormField("wallet_password", "Wallet password", "password", wallet.WalletPassword, "", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.FormField("wallet_password", "Wallet Password", "password", wallet.WalletPassword, "optional", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</div><div class=\"py-4\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -160,21 +161,37 @@ func Settings(user *database.User, wallet *database.WalletConfig, status monero.
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"flex justify-end\"><button type=\"submit\" name=\"action\" value=\"save\" class=\"bg-primary-container py-3 px-6 text-black font-headline font-bold uppercase tracking-widest hover:brightness-90 transition-all rounded-md text-sm\">Save</button></div><div class=\"pt-6 border-t border-outline-variant/15 space-y-5\"><h4 class=\"font-headline text-lg font-bold\">Create view-only wallet</h4><div class=\"grid grid-cols-1 md:grid-cols-3 gap-5\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.PrimaryButton("Save Wallet Config", false).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.FormField("address", "Primary address", "text", "", "4...", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</form>")
+				templ_7745c5c3_Err = components.FormField("viewkey", "Private view key", "password", "", "", templ.Attributes{"minlength": "64", "maxlength": "64"}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = components.FormField("restore_height", "Restore height", "number", "", "0", templ.Attributes{"min": "0"}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</div><div class=\"grid grid-cols-1 md:grid-cols-2 gap-5\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = components.FormField("filename", "New wallet file", "text", "", "tiponero-view", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</div><div class=\"flex justify-end\"><button type=\"submit\" name=\"action\" value=\"create\" class=\"bg-surface-container-high py-3 px-6 text-on-surface font-headline font-bold uppercase tracking-widest hover:bg-surface-bright transition-all rounded-md text-sm\">Create wallet</button></div></div></form>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.SectionCard("Wallet RPC", "account_balance_wallet").Render(templ.WithChildren(ctx, templ_7745c5c3_Var4), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.SectionCard("Wallet", "account_balance_wallet").Render(templ.WithChildren(ctx, templ_7745c5c3_Var4), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -190,33 +207,56 @@ func Settings(user *database.User, wallet *database.WalletConfig, status monero.
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<form hx-post=\"/admin/settings/password\" hx-swap=\"none\" class=\"space-y-5 flex-1 flex flex-col\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<form hx-post=\"/admin/settings/password\" hx-swap=\"none\" class=\"space-y-5\"><div class=\"grid grid-cols-1 md:grid-cols-2 gap-5\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.FormField("current_password", "Current Password", "password", "", "Enter current password", templ.Attributes{"required": true}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.FormField("current_password", "Current password", "password", "", "", templ.Attributes{"required": true}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.FormField("new_password", "New Password", "password", "", "At least 8 characters", templ.Attributes{"required": true, "minlength": "8"}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.FormField("new_password", "New password", "password", "", "", templ.Attributes{"required": true, "minlength": "8"}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<div class=\"flex-1\"></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</div><div class=\"flex justify-end\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.PrimaryButton("Update Password", false).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.PrimaryButton("Update password", false).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</form>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</div></form><div class=\"pt-6 mt-6 border-t border-outline-variant/15\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				if user.TOTPSecret != "" {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<form hx-post=\"/admin/settings/totp/disable\" hx-swap=\"none\" class=\"flex flex-wrap items-end justify-between gap-4\" x-data=\"{ code: '' }\"><div class=\"flex items-center gap-3\"><span class=\"material-symbols-outlined text-primary-container\" style=\"font-variation-settings: 'FILL' 1;\">verified_user</span><p class=\"font-headline font-bold text-on-surface\">Two-factor authentication is on</p></div><div class=\"flex items-end gap-3\"><div class=\"space-y-1.5\"><label for=\"disable_code\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Code</label> <input type=\"text\" id=\"disable_code\" name=\"code\" x-model=\"code\" inputmode=\"numeric\" pattern=\"[0-9]{6}\" maxlength=\"6\" autocomplete=\"one-time-code\" placeholder=\"000000\" required class=\"w-32 bg-surface-container-highest border-none text-on-surface p-3 font-mono text-center tracking-widest rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30\"></div><button type=\"submit\" x-bind:disabled=\"code.length !== 6\" class=\"flex items-center gap-2 text-error text-sm font-headline font-bold uppercase tracking-widest hover:bg-error-container/20 py-3 px-6 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed\"><span class=\"material-symbols-outlined text-sm\">delete</span> Disable 2FA</button></div></form>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				} else {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<div class=\"flex flex-wrap items-center justify-between gap-4\"><div class=\"flex items-center gap-3\"><span class=\"material-symbols-outlined text-on-surface-variant\">shield</span><p class=\"font-headline font-bold text-on-surface\">Two-factor authentication is off</p></div><form method=\"POST\" action=\"/admin/settings/totp/setup\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = components.PrimaryButton("Enable 2FA", false).Render(ctx, templ_7745c5c3_Buffer)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</form></div>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.SectionCard("Change Password", "lock").Render(templ.WithChildren(ctx, templ_7745c5c3_Var5), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.SectionCard("Account Security", "shield").Render(templ.WithChildren(ctx, templ_7745c5c3_Var5), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -232,56 +272,15 @@ func Settings(user *database.User, wallet *database.WalletConfig, status monero.
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				if user.TOTPSecret != "" {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<div class=\"flex items-center gap-3 p-4 bg-primary-container/10 rounded-md mb-6\"><span class=\"material-symbols-outlined text-primary-container text-xl\" style=\"font-variation-settings: 'FILL' 1;\">check_circle</span><div><p class=\"text-sm font-bold text-on-surface\">2FA is currently enabled</p><p class=\"text-xs text-on-surface-variant font-mono uppercase tracking-widest\">TOTP Active</p></div></div><form hx-post=\"/admin/settings/totp/disable\" hx-swap=\"none\" class=\"space-y-5 flex-1 flex flex-col\" x-data=\"{ code: '' }\"><div class=\"space-y-1.5\"><label for=\"disable_code\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Enter code to disable</label> <input type=\"text\" id=\"disable_code\" name=\"code\" x-model=\"code\" inputmode=\"numeric\" pattern=\"[0-9]{6}\" maxlength=\"6\" autocomplete=\"one-time-code\" placeholder=\"000000\" required class=\"w-full bg-surface-container-highest border-none text-on-surface p-2 font-mono text-center text-lg tracking-widest rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30\"></div><div class=\"flex-1\"></div><button type=\"submit\" x-bind:disabled=\"code.length !== 6\" class=\"w-full flex items-center gap-2 text-error text-sm font-headline font-bold uppercase tracking-widest hover:bg-error-container/20 py-3 px-6 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed\"><span class=\"material-symbols-outlined text-sm\">delete</span> Disable 2FA</button></form>")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				} else {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<p class=\"text-sm text-on-surface-variant font-body leading-relaxed mt-6\">Add an extra layer of security to your account. When enabled, you will need to enter a 6-digit code from your authenticator app each time you sign in.</p><div class=\"flex-1\"></div><form method=\"POST\" action=\"/admin/settings/totp/setup\">")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = components.PrimaryButton("Enable 2FA", true).Render(ctx, templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</form>")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				}
-				return nil
-			})
-			templ_7745c5c3_Err = components.SectionCard("Two-Factor Authentication", "shield").Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</div><div class=\"mt-8\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Var7 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-				if !templ_7745c5c3_IsBuffer {
-					defer func() {
-						templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-						if templ_7745c5c3_Err == nil {
-							templ_7745c5c3_Err = templ_7745c5c3_BufErr
-						}
-					}()
-				}
-				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<form hx-post=\"/admin/settings/api-keys\" hx-target=\"#api-key-reveal\" hx-swap=\"innerHTML\" class=\"flex items-end gap-3 mb-6\"><div class=\"flex-1 space-y-1.5\"><label for=\"api_key_name\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Key Name</label> <input type=\"text\" id=\"api_key_name\" name=\"name\" required placeholder=\"Online Store\" class=\"w-full bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30\"></div><div class=\"space-y-1.5\"><label for=\"api_key_expiry\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Expires in</label> <select id=\"api_key_expiry\" name=\"expiry_days\" class=\"bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30\"><option value=\"30\">30 days</option> <option value=\"90\">90 days</option> <option value=\"180\">180 days</option> <option value=\"365\" selected>1 year</option></select></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<form hx-post=\"/admin/settings/api-keys\" hx-target=\"#api-key-reveal\" hx-swap=\"innerHTML\" class=\"flex flex-wrap items-end gap-3 mb-6\"><div class=\"flex-1 min-w-[200px] space-y-1.5\"><label for=\"api_key_name\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Name</label> <input type=\"text\" id=\"api_key_name\" name=\"name\" required placeholder=\"Online Store\" class=\"w-full bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30\"></div><div class=\"space-y-1.5\"><label for=\"api_key_expiry\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Expires in</label> <select id=\"api_key_expiry\" name=\"expiry_days\" class=\"bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30\"><option value=\"30\">30 days</option> <option value=\"90\">90 days</option> <option value=\"180\">180 days</option> <option value=\"365\" selected>1 year</option></select></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.PrimaryButton("Create Key", false).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.PrimaryButton("Create key", false).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</form><div id=\"api-key-reveal\"></div><div id=\"api-key-list\" class=\"space-y-2\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</form><div id=\"api-key-reveal\"></div><div id=\"api-key-list\" class=\"space-y-2\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -291,23 +290,23 @@ func Settings(user *database.User, wallet *database.WalletConfig, status monero.
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				if len(apiKeys) == 0 {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<p id=\"api-key-empty\" class=\"text-sm text-on-surface-variant font-body text-center py-6\">No API keys yet. Create one to access the REST API.</p>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<p id=\"api-key-empty\" class=\"text-sm text-on-surface-variant font-body text-center py-6\">No API keys yet.</p>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.SectionCard("API Keys", "key").Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.SectionCard("API Keys", "key").Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -337,111 +336,111 @@ func apiKeyRow(k database.APIKey) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var8 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var8 == nil {
-			templ_7745c5c3_Var8 = templ.NopComponent
+		templ_7745c5c3_Var7 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var7 == nil {
+			templ_7745c5c3_Var7 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<div id=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var8 string
+		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("api-key-%s", k.ID))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/settings.templ`, Line: 139, Col: 42}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "\" class=\"flex items-center justify-between p-3 rounded-lg bg-surface-container-low\" x-data=\"{ confirmDelete: false }\"><div class=\"flex items-center gap-4 min-w-0\"><div class=\"min-w-0\"><p class=\"text-sm font-bold text-on-surface truncate\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var9 string
-		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("api-key-%s", k.ID))
+		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(k.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/settings.templ`, Line: 142, Col: 42}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/settings.templ`, Line: 142, Col: 66}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "\" class=\"flex items-center justify-between p-3 rounded-lg bg-surface-container-low\" x-data=\"{ confirmDelete: false }\"><div class=\"flex items-center gap-4 min-w-0\"><div class=\"min-w-0\"><p class=\"text-sm font-bold text-on-surface truncate\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</p><div class=\"flex items-center gap-3 text-xs text-on-surface-variant font-mono\"><span>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var10 string
-		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(k.Name)
+		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("tip_%s...", k.Prefix))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/settings.templ`, Line: 145, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/settings.templ`, Line: 144, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</p><div class=\"flex items-center gap-3 text-xs text-on-surface-variant font-mono\"><span>")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var11 string
-		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("tip_%s...", k.Prefix))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/settings.templ`, Line: 147, Col: 47}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</span> <span>&middot;</span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</span> <span>&middot;</span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if isExpired(k.ExpiresAt) {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<span class=\"text-error\">Expired</span> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<span class=\"text-error\">Expired</span> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<span>Expires ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<span>Expires ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var12 string
-			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(formatUnix(k.ExpiresAt))
+			var templ_7745c5c3_Var11 string
+			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(formatUnix(k.ExpiresAt))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/settings.templ`, Line: 152, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/settings.templ`, Line: 149, Col: 45}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</span> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</span> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
 		if k.LastUsedAt > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "<span>&middot;</span> <span>Last used ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<span>&middot;</span> <span>Last used ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var13 string
-			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(formatUnix(k.LastUsedAt))
+			var templ_7745c5c3_Var12 string
+			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(formatUnix(k.LastUsedAt))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/settings.templ`, Line: 156, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/settings.templ`, Line: 153, Col: 48}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</div></div></div><div class=\"flex items-center gap-1 shrink-0\"><template x-if=\"!confirmDelete\"><button type=\"button\" @click=\"confirmDelete = true\" class=\"flex items-center gap-1 text-error text-xs font-mono uppercase tracking-widest leading-none hover:bg-error-container/20 px-2 py-1 rounded-md transition-colors cursor-pointer\"><span class=\"material-symbols-outlined text-sm\">delete</span> Delete</button></template><template x-if=\"confirmDelete\"><div class=\"flex items-center gap-1\"><span class=\"text-on-surface-variant text-xs font-mono leading-none\">Sure?</span> <button type=\"button\" @click=\"confirmDelete = false\" class=\"text-on-surface-variant text-xs font-mono uppercase tracking-widest leading-none hover:bg-surface-container-high px-2 py-1 rounded-md transition-colors cursor-pointer\">Cancel</button><form class=\"flex\" method=\"POST\" action=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</div></div></div><div class=\"flex items-center gap-1 shrink-0\"><template x-if=\"!confirmDelete\"><button type=\"button\" @click=\"confirmDelete = true\" class=\"flex items-center gap-1 text-error text-xs font-mono uppercase tracking-widest leading-none hover:bg-error-container/20 px-2 py-1 rounded-md transition-colors cursor-pointer\"><span class=\"material-symbols-outlined text-sm\">delete</span> Delete</button></template><template x-if=\"confirmDelete\"><div class=\"flex items-center gap-1\"><span class=\"text-on-surface-variant text-xs font-mono leading-none\">Sure?</span> <button type=\"button\" @click=\"confirmDelete = false\" class=\"text-on-surface-variant text-xs font-mono uppercase tracking-widest leading-none hover:bg-surface-container-high px-2 py-1 rounded-md transition-colors cursor-pointer\">Cancel</button><form class=\"flex\" method=\"POST\" action=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var14 templ.SafeURL
-		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/admin/settings/api-keys/%s/delete", k.ID)))
+		var templ_7745c5c3_Var13 templ.SafeURL
+		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/admin/settings/api-keys/%s/delete", k.ID)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/settings.templ`, Line: 174, Col: 117}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/settings.templ`, Line: 169, Col: 117}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\"><button type=\"submit\" class=\"text-error text-xs font-mono uppercase tracking-widest leading-none hover:bg-error-container/20 px-2 py-1 rounded-md transition-colors font-bold cursor-pointer\">Delete</button></form></div></template></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "\"><button type=\"submit\" class=\"text-error text-xs font-mono uppercase tracking-widest leading-none hover:bg-error-container/20 px-2 py-1 rounded-md transition-colors font-bold cursor-pointer\">Delete</button></form></div></template></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

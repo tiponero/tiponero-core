@@ -74,3 +74,13 @@ type ConnectionStatus struct {
 	BlockHeight uint64
 	Error       string
 }
+
+type GenerateFromKeysParams struct {
+	Filename        string `json:"filename"`
+	Address         string `json:"address"`
+	SpendKey        string `json:"spendkey,omitempty"`
+	ViewKey         string `json:"viewkey,omitempty"`
+	Password        string `json:"password,omitempty"`
+	RestoreHeight   uint64 `json:"restore_height,omitempty"`
+	AutosaveCurrent bool   `json:"autosave_current"`
+}
