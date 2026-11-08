@@ -1,7 +1,5 @@
 FROM golang:1.26-bookworm AS build
 
-RUN go install github.com/a-h/templ/cmd/templ@v0.3.1001
-
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && ARCH=$(dpkg --print-architecture) \
@@ -15,7 +13,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 
-RUN templ generate
+RUN go -C tools tool templ generate -path ..
 RUN tailwindcss -i static/css/input.css -o static/css/output.css --minify
 RUN CGO_ENABLED=1 go build -o /tiponero ./cmd/tiponero
 
