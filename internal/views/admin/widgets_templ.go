@@ -89,6 +89,10 @@ func Widgets(widgets []database.Widget, hostURL string, rpcStatus monero.Connect
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
+				templ_7745c5c3_Err = components.FormField("thank_you_message", "Thank You Message", "text", "", "Thank you for your donation!", templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div class=\"space-y-1.5\"><label for=\"redirect_url\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Redirect URL (optional)</label> <input type=\"url\" id=\"redirect_url\" name=\"redirect_url\" placeholder=\"https://example.com/thank-you\" class=\"w-full bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30\"></div><div class=\"grid grid-cols-1 sm:grid-cols-2 gap-4\"><div class=\"space-y-1.5\"><label for=\"primary_color\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Accent Color</label><div class=\"space-y-2 p-2 bg-surface-container-highest rounded-md\" x-data=\"{ color: '#ff6600' }\"><div class=\"flex gap-2 items-center\"><button type=\"button\" @click=\"color = '#FF6600'\" :class=\"color === '#FF6600' ? 'ring-2 ring-white/70 ring-offset-2 ring-offset-surface-container-highest' : ''\" class=\"w-8 h-8 rounded-md bg-[#FF6600] transition-all shrink-0\"></button> <button type=\"button\" @click=\"color = '#009cfc'\" :class=\"color === '#009cfc' ? 'ring-2 ring-white/70 ring-offset-2 ring-offset-surface-container-highest' : ''\" class=\"w-8 h-8 rounded-md bg-[#009cfc] transition-all shrink-0\"></button> <button type=\"button\" @click=\"color = '#9ccaff'\" :class=\"color === '#9ccaff' ? 'ring-2 ring-white/70 ring-offset-2 ring-offset-surface-container-highest' : ''\" class=\"w-8 h-8 rounded-md bg-[#9ccaff] transition-all shrink-0\"></button> <button type=\"button\" @click=\"color = '#ffb4ab'\" :class=\"color === '#ffb4ab' ? 'ring-2 ring-white/70 ring-offset-2 ring-offset-surface-container-highest' : ''\" class=\"w-8 h-8 rounded-md bg-[#ffb4ab] transition-all shrink-0\"></button></div><div class=\"flex items-center gap-2\"><input type=\"color\" x-model=\"color\" class=\"w-8 h-8 rounded-md cursor-pointer bg-transparent border-none p-0 shrink-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch]:border-none [&::-moz-color-swatch]:rounded-md [&::-moz-color-swatch]:border-none\"> <input type=\"text\" x-model=\"color\" maxlength=\"7\" pattern=\"^#[0-9a-fA-F]{6}$\" class=\"flex-1 bg-surface-container-high border-none text-on-surface-variant font-mono text-xs p-1.5 rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 uppercase\"></div><input type=\"hidden\" name=\"primary_color\" x-bind:value=\"color\"></div></div><div class=\"space-y-1.5\"><label for=\"theme\" class=\"text-xs font-mono uppercase tracking-widest text-on-surface-variant\">Theme</label> <select id=\"theme\" name=\"theme\" class=\"w-full bg-surface-container-highest border-none text-on-surface p-3 font-body text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 appearance-none\"><option value=\"system\">System Default</option> <option value=\"light\">Light</option> <option value=\"dark\">Dark</option></select></div></div><div class=\"flex items-center gap-3\"><input type=\"checkbox\" id=\"show_stats\" name=\"show_stats\" checked class=\"rounded-md border-outline-variant bg-surface-container-highest text-primary-container focus:ring-primary/30\"> <label for=\"show_stats\" class=\"text-sm font-body text-on-surface-variant\">Show stats on badge</label></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -173,7 +177,7 @@ func widgetCard(w database.Widget, hostURL string) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(w.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 183, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 184, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -186,7 +190,7 @@ func widgetCard(w database.Widget, hostURL string) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(w.CustomMessage)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 184, Col: 84}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 185, Col: 84}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -214,7 +218,7 @@ func widgetCard(w database.Widget, hostURL string) templ.Component {
 		var templ_7745c5c3_Var7 templ.SafeURL
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/admin/widgets/%s/delete", w.ID)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 213, Col: 109}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 214, Col: 109}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -227,7 +231,7 @@ func widgetCard(w database.Widget, hostURL string) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/widget/%s", w.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 226, Col: 42}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 227, Col: 42}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 		if templ_7745c5c3_Err != nil {
@@ -240,7 +244,7 @@ func widgetCard(w database.Widget, hostURL string) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/widget/%s/badge.svg", w.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 236, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 237, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 		if templ_7745c5c3_Err != nil {
@@ -306,7 +310,7 @@ func copyBox(label string, refName string, value string) templ.Component {
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 273, Col: 89}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 274, Col: 89}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
@@ -319,7 +323,7 @@ func copyBox(label string, refName string, value string) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("copyText('%s')", refName))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 276, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 277, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
 		if templ_7745c5c3_Err != nil {
@@ -332,7 +336,7 @@ func copyBox(label string, refName string, value string) templ.Component {
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("copied === '%s' ? 'bg-primary-container/10 text-primary-container' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-bright'", refName))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 278, Col: 187}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 279, Col: 187}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
 		if templ_7745c5c3_Err != nil {
@@ -345,7 +349,7 @@ func copyBox(label string, refName string, value string) templ.Component {
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("copied === '%s' ? 'Copied!' : 'Copy'", refName))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 279, Col: 73}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 280, Col: 73}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 		if templ_7745c5c3_Err != nil {
@@ -358,7 +362,7 @@ func copyBox(label string, refName string, value string) templ.Component {
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(refName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 282, Col: 23}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 283, Col: 23}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 		if templ_7745c5c3_Err != nil {
@@ -371,7 +375,7 @@ func copyBox(label string, refName string, value string) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(value)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 283, Col: 10}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/admin/widgets.templ`, Line: 284, Col: 10}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {

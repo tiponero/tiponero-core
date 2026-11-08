@@ -4,12 +4,20 @@ A self-hosted Monero payments engine. Single Go binary with embedded SQLite, HTM
 
 [![Support Tiponero](https://demo.tiponero.org/widget/dda5980a-157f-4fed-8b19-97b4940ef808/badge.svg)](https://demo.tiponero.org/widget/dda5980a-157f-4fed-8b19-97b4940ef808)
 
+## Documentation
+
+- [Documentation index](./docs/README.md)
+- [System architecture](./docs/architecture.md): processes, protocols, deployment, secrets
+- [Data model](./docs/data-model.md): SQLite tables, columns, relations, indexes
+- [Flows and business logic](./docs/flows.md): setup, payment flow, state machine, API auth
+
 ## Features
 
 - **Developer REST API** at `/api/v1` with bearer token authentication via named API keys
 - **Unique subaddresses** per transaction via Monero wallet RPC
 - **Embeddable widgets** with customizable preset amounts, button text, and messages
-- **Real-time payment tracking** with background polling (pending, mempool, confirming, confirmed)
+- **Real-time payment tracking** with background polling (pending, mempool, confirming, underpaid, confirmed)
+- **Amount verification** with an `underpaid` state when the received amount is below the requested amount
 - **Admin dashboard** with transaction stats, filtering, and CSV export
 - **TOTP two-factor authentication** for admin login (compatible with any authenticator app)
 - **Fiat conversion** with automatic XMR price snapshots at transaction time (via CoinGecko, configurable currency)
@@ -161,11 +169,11 @@ static/                          Embedded assets (CSS, HTMX, Alpine.js)
 
 1. User visits a widget page (`/widget/<id>`)
 2. **Donation mode**: selects a preset amount or enters a custom one, optionally provides name and note. **Payment mode**: sees the fixed price and optionally enters a reference note.
-3. Server calls `monero-wallet-rpc` `create_address` to generate a unique subaddress
+3. Server calls `monero-wallet-rpc` `create_address` to generate a unique subaddress. In payment mode, the server uses the widget preset as the requested amount.
 4. If a specific amount is requested and fiat conversion is available, the current XMR price is snapshotted and stored with the transaction
 5. User sees a QR code and address; page polls for payment status via HTMX
-6. Background monitor polls `get_transfers`, updating status through `pending -> mempool -> confirming -> confirmed`
-7. On confirmation:  Shows a thank-you message or automatically redirects to the given redirect url if specified
+6. Background monitor polls `get_transfers`, sums transfers per subaddress, and updates status through `pending -> mempool -> confirming -> confirmed`. A transfer below the requested amount sets `underpaid`
+7. On confirmation: shows the widget thank-you message, or automatically redirects to the given redirect URL if specified
 8. Transactions expire after the configured `TRANSACTION_EXPIRY` (default 1 hour) if no payment is detected
 
 ## Two-Factor Authentication

@@ -86,45 +86,54 @@ func toWidgetJSON(w *database.Widget) widgetJSON {
 }
 
 type transactionJSON struct {
-	ID            string  `json:"id"`
-	WidgetID      string  `json:"widget_id"`
-	Subaddress    string  `json:"subaddress"`
-	Amount        int64   `json:"amount"`
-	AmountXMR     string  `json:"amount_xmr"`
-	FiatAmount    float64 `json:"fiat_amount"`
-	FiatCurrency  string  `json:"fiat_currency"`
-	Status        string  `json:"status"`
-	Confirmations int     `json:"confirmations"`
-	IsPayment     bool    `json:"is_payment"`
-	DonorName     string  `json:"donor_name"`
-	Note          string  `json:"note"`
-	TxHash        string  `json:"tx_hash"`
-	CreatedAt     int64   `json:"created_at"`
-	UpdatedAt     int64   `json:"updated_at"`
-	ConfirmedAt   int64   `json:"confirmed_at"`
-	ExpiresAt     int64   `json:"expires_at"`
+	ID                string  `json:"id"`
+	WidgetID          string  `json:"widget_id"`
+	Subaddress        string  `json:"subaddress"`
+	Amount            int64   `json:"amount"`
+	AmountXMR         string  `json:"amount_xmr"`
+	ReceivedAmount    int64   `json:"received_amount"`
+	ReceivedAmountXMR string  `json:"received_amount_xmr"`
+	FiatAmount        float64 `json:"fiat_amount"`
+	FiatCurrency      string  `json:"fiat_currency"`
+	Status            string  `json:"status"`
+	Confirmations     int     `json:"confirmations"`
+	IsPayment         bool    `json:"is_payment"`
+	DonorName         string  `json:"donor_name"`
+	Note              string  `json:"note"`
+	TxHash            string  `json:"tx_hash"`
+	CreatedAt         int64   `json:"created_at"`
+	UpdatedAt         int64   `json:"updated_at"`
+	ConfirmedAt       int64   `json:"confirmed_at"`
+	ExpiresAt         int64   `json:"expires_at"`
 }
 
 func toTransactionJSON(t *database.Transaction) transactionJSON {
 	xmr := strconv.FormatFloat(float64(t.Amount)/1e12, 'f', -1, 64)
+	received := t.ReceivedAmount
+	if received == 0 && t.Status == database.StatusConfirmed {
+		received = t.Amount
+	}
+	receivedXMR := strconv.FormatFloat(float64(received)/1e12, 'f', -1, 64)
 	return transactionJSON{
-		ID:            t.ID,
-		WidgetID:      t.WidgetID.String,
-		Subaddress:    t.Subaddress,
-		Amount:        t.Amount,
-		AmountXMR:     xmr,
-		FiatAmount:    t.FiatAmount,
-		FiatCurrency:  t.FiatCurrency,
-		Status:        string(t.Status),
-		Confirmations: t.Confirmations,
-		IsPayment:     t.IsPayment,
-		DonorName:     t.DonorName,
-		Note:          t.Note,
-		TxHash:        t.TxHash,
-		CreatedAt:     t.CreatedAt,
-		UpdatedAt:     t.UpdatedAt,
-		ConfirmedAt:   t.ConfirmedAt,
-		ExpiresAt:     t.ExpiresAt,
+		ID:                t.ID,
+		WidgetID:          t.WidgetID.String,
+		Subaddress:        t.Subaddress,
+		Amount:            t.Amount,
+		AmountXMR:         xmr,
+		ReceivedAmount:    received,
+		ReceivedAmountXMR: receivedXMR,
+		FiatAmount:        t.FiatAmount,
+		FiatCurrency:      t.FiatCurrency,
+		Status:            string(t.Status),
+		Confirmations:     t.Confirmations,
+		IsPayment:         t.IsPayment,
+		DonorName:         t.DonorName,
+		Note:              t.Note,
+		TxHash:            t.TxHash,
+		CreatedAt:         t.CreatedAt,
+		UpdatedAt:         t.UpdatedAt,
+		ConfirmedAt:       t.ConfirmedAt,
+		ExpiresAt:         t.ExpiresAt,
 	}
 }
 
@@ -288,7 +297,11 @@ func (h *APIHandler) CreateWidget(w http.ResponseWriter, r *http.Request) {
 		widget.CustomMessage = "Your support is appreciated!"
 	}
 	if widget.ThankYouMessage == "" {
-		widget.ThankYouMessage = "Thank you for your donation!"
+		if mode == database.ModePayment {
+			widget.ThankYouMessage = "Thank you for your payment!"
+		} else {
+			widget.ThankYouMessage = "Thank you for your donation!"
+		}
 	}
 	if widget.PrimaryColor == "" {
 		widget.PrimaryColor = "#ff6600"

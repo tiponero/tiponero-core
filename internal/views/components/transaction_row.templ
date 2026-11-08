@@ -42,6 +42,9 @@ templ TransactionRow(t database.Transaction) {
 			} else {
 				<span class="text-on-surface-variant font-mono">Any amount</span>
 			}
+			if t.ReceivedAmount > 0 && t.ReceivedAmount != t.Amount {
+				<span class="block text-on-surface-variant text-xs font-mono mt-1">Received { FormatXMR(t.ReceivedAmount) }</span>
+			}
 		</td>
 		<td class="px-4 py-4">
 			@StatusBadge(t.Status)
@@ -75,6 +78,11 @@ templ StatusBadge(status database.TransactionStatus) {
 			<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono uppercase tracking-widest bg-primary-container/10 text-primary-container">
 				<span class="material-symbols-outlined text-xs">sync</span>
 				Confirming
+			</span>
+		case database.StatusUnderpaid:
+			<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono uppercase tracking-widest bg-error-container/10 text-error">
+				<span class="material-symbols-outlined text-xs">error_outline</span>
+				Underpaid
 			</span>
 		case database.StatusConfirmed:
 			<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono uppercase tracking-widest bg-primary-container/10 text-primary-container">

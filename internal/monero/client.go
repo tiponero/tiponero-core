@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/icholy/digest"
 )
 
 var ErrNotConfigured = errors.New("wallet RPC not configured")
+
+const rpcTimeout = 30 * time.Second
 
 type Client struct {
 	url  string
@@ -19,7 +22,7 @@ type Client struct {
 }
 
 func NewClient(url, username, password string) *Client {
-	c := &Client{url: strings.TrimRight(url, "/"), http: &http.Client{}}
+	c := &Client{url: strings.TrimRight(url, "/"), http: &http.Client{Timeout: rpcTimeout}}
 	if username != "" {
 		c.http.Transport = &digest.Transport{
 			Username: username,

@@ -8,11 +8,11 @@ import (
 func (db *DB) CreateTransaction(t *Transaction) error {
 	return db.conn.QueryRow(
 		`INSERT INTO "transaction" (user_id, widget_id, subaddress, subaddress_index,
-		 amount, fiat_amount, fiat_currency, status, confirmations,
+		 amount, received_amount, fiat_amount, fiat_currency, status, confirmations,
 		 is_payment, donor_name, note, tx_hash, created_at, updated_at, confirmed_at, expires_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
 		t.UserID, t.WidgetID, t.Subaddress, t.SubaddressIndex,
-		t.Amount, t.FiatAmount, nullStr(t.FiatCurrency), t.Status, t.Confirmations,
+		t.Amount, t.ReceivedAmount, t.FiatAmount, nullStr(t.FiatCurrency), t.Status, t.Confirmations,
 		t.IsPayment, nullStr(t.DonorName), nullStr(t.Note), nullStr(t.TxHash), t.CreatedAt, t.UpdatedAt, t.ConfirmedAt, t.ExpiresAt,
 	).Scan(&t.ID)
 }
@@ -82,8 +82,8 @@ func (db *DB) ListTransactions(userID string, f TransactionFilter) ([]Transactio
 
 func (db *DB) GetActiveTransactions() ([]Transaction, error) {
 	rows, err := db.conn.Query(
-		`SELECT `+transactionColumns+` FROM "transaction" WHERE status IN (?, ?, ?)`,
-		StatusPending, StatusMempool, StatusConfirming,
+		`SELECT `+transactionColumns+` FROM "transaction" WHERE status IN (?, ?, ?, ?)`,
+		StatusPending, StatusMempool, StatusConfirming, StatusUnderpaid,
 	)
 	if err != nil {
 		return nil, err
@@ -101,7 +101,7 @@ func (db *DB) GetActiveTransactions() ([]Transaction, error) {
 	return transactions, rows.Err()
 }
 
-func (db *DB) UpdateTransactionStatus(id string, status TransactionStatus, confirmations int, txHash string) error {
+func (db *DB) UpdateTransactionStatus(id string, status TransactionStatus, confirmations int, txHash string, receivedAmount int64) error {
 	now := time.Now().Unix()
 	var confirmedAt any
 	if status == StatusConfirmed {
@@ -109,9 +109,9 @@ func (db *DB) UpdateTransactionStatus(id string, status TransactionStatus, confi
 	}
 
 	_, err := db.conn.Exec(
-		`UPDATE "transaction" SET status = ?, confirmations = ?, tx_hash = ?, updated_at = ?, confirmed_at = COALESCE(?, confirmed_at)
+		`UPDATE "transaction" SET status = ?, confirmations = ?, tx_hash = ?, received_amount = ?, updated_at = ?, confirmed_at = COALESCE(?, confirmed_at)
 		 WHERE id = ?`,
-		status, confirmations, nullStr(txHash), now, confirmedAt, id,
+		status, confirmations, nullStr(txHash), receivedAmount, now, confirmedAt, id,
 	)
 	return err
 }
@@ -119,8 +119,8 @@ func (db *DB) UpdateTransactionStatus(id string, status TransactionStatus, confi
 func (db *DB) ExpireOldTransactions() (int64, error) {
 	now := time.Now().Unix()
 	result, err := db.conn.Exec(
-		`UPDATE "transaction" SET status = ?, updated_at = ? WHERE status = ? AND expires_at < ?`,
-		StatusExpired, now, StatusPending, now,
+		`UPDATE "transaction" SET status = ?, updated_at = ? WHERE status IN (?, ?) AND expires_at < ?`,
+		StatusExpired, now, StatusPending, StatusUnderpaid, now,
 	)
 	if err != nil {
 		return 0, err
@@ -133,7 +133,7 @@ func (db *DB) GetTransactionStats(userID string) (*TransactionStats, error) {
 	stats := &TransactionStats{}
 
 	err := db.conn.QueryRow(
-		`SELECT COUNT(*), COALESCE(SUM(amount), 0)
+		`SELECT COUNT(*), COALESCE(SUM(`+effectiveAmount+`), 0)
 		 FROM "transaction" WHERE user_id = ? AND status = ?`,
 		userID, StatusConfirmed,
 	).Scan(&stats.TotalTransactions, &stats.TotalAmount)
@@ -142,15 +142,15 @@ func (db *DB) GetTransactionStats(userID string) (*TransactionStats, error) {
 	}
 
 	err = db.conn.QueryRow(
-		`SELECT COUNT(*) FROM "transaction" WHERE user_id = ? AND status IN (?, ?, ?)`,
-		userID, StatusPending, StatusMempool, StatusConfirming,
+		`SELECT COUNT(*) FROM "transaction" WHERE user_id = ? AND status IN (?, ?, ?, ?)`,
+		userID, StatusPending, StatusMempool, StatusConfirming, StatusUnderpaid,
 	).Scan(&stats.PendingCount)
 	if err != nil {
 		return nil, err
 	}
 
 	err = db.conn.QueryRow(
-		`SELECT COUNT(*), COALESCE(SUM(amount), 0)
+		`SELECT COUNT(*), COALESCE(SUM(`+effectiveAmount+`), 0)
 		 FROM "transaction" WHERE user_id = ? AND status = ? AND confirmed_at >= ?`,
 		userID, StatusConfirmed, todayStart,
 	).Scan(&stats.TodayCount, &stats.TodayAmount)
@@ -164,7 +164,7 @@ func (db *DB) GetTransactionStats(userID string) (*TransactionStats, error) {
 func (db *DB) GetWidgetStats(widgetID string) (*WidgetStats, error) {
 	stats := &WidgetStats{}
 	err := db.conn.QueryRow(
-		`SELECT COUNT(*), COALESCE(SUM(amount), 0)
+		`SELECT COUNT(*), COALESCE(SUM(`+effectiveAmount+`), 0)
 		 FROM "transaction" WHERE widget_id = ? AND status = ?`,
 		widgetID, StatusConfirmed,
 	).Scan(&stats.TotalTransactions, &stats.TotalAmount)
@@ -175,15 +175,20 @@ func (db *DB) GetWidgetStats(widgetID string) (*WidgetStats, error) {
 }
 
 const transactionColumns = `id, user_id, widget_id, subaddress, subaddress_index,
-	amount, fiat_amount, fiat_currency, status, confirmations,
+	amount, received_amount, fiat_amount, fiat_currency, status, confirmations,
 	is_payment, donor_name, note, tx_hash, created_at, updated_at, confirmed_at, expires_at`
+
+// effectiveAmount uses the received amount when the monitor recorded one.
+// Rows confirmed by an older version have received_amount = 0, so the
+// requested amount is the best available value.
+const effectiveAmount = `COALESCE(NULLIF(received_amount, 0), amount)`
 
 func (db *DB) scanTransaction(row *sql.Row) (*Transaction, error) {
 	t := &Transaction{}
 	var fiatCurrency, donorName, note, txHash sql.NullString
 	err := row.Scan(
 		&t.ID, &t.UserID, &t.WidgetID, &t.Subaddress, &t.SubaddressIndex,
-		&t.Amount, &t.FiatAmount, &fiatCurrency,
+		&t.Amount, &t.ReceivedAmount, &t.FiatAmount, &fiatCurrency,
 		&t.Status, &t.Confirmations,
 		&t.IsPayment, &donorName, &note, &txHash,
 		&t.CreatedAt, &t.UpdatedAt, &t.ConfirmedAt, &t.ExpiresAt,
@@ -207,7 +212,7 @@ func (db *DB) scanTransactionRow(row scannable) (*Transaction, error) {
 	var fiatCurrency, donorName, note, txHash sql.NullString
 	err := row.Scan(
 		&t.ID, &t.UserID, &t.WidgetID, &t.Subaddress, &t.SubaddressIndex,
-		&t.Amount, &t.FiatAmount, &fiatCurrency,
+		&t.Amount, &t.ReceivedAmount, &t.FiatAmount, &fiatCurrency,
 		&t.Status, &t.Confirmations,
 		&t.IsPayment, &donorName, &note, &txHash,
 		&t.CreatedAt, &t.UpdatedAt, &t.ConfirmedAt, &t.ExpiresAt,

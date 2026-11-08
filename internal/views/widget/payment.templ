@@ -1,14 +1,15 @@
 package widget
 
 import (
+	"fmt"
+
 	"github.com/tiponero/tiponero-core/internal/database"
 	"github.com/tiponero/tiponero-core/internal/views/components"
 	"github.com/tiponero/tiponero-core/internal/views/layouts"
-	"fmt"
 )
 
-templ Payment(tx *database.Transaction, theme database.WidgetTheme, primaryColor string, redirectURL string) {
-	@layouts.WidgetPage("Awaiting Payment", theme, primaryColor) {
+templ Payment(tx *database.Transaction, widget *database.Widget, requiredConfirmations int) {
+	@layouts.WidgetPage("Awaiting Payment", widget.Theme, widget.PrimaryColor) {
 		<div class="w-full max-w-sm mx-auto">
 			<div class="bg-gray-50 dark:bg-surface-container-low/80 dark:backdrop-blur rounded-xl p-8 dark:shadow-[inset_1px_1px_0_0_rgba(57,57,57,0.1)]">
 				<div class="text-center mb-6">
@@ -35,16 +36,16 @@ templ Payment(tx *database.Transaction, theme database.WidgetTheme, primaryColor
 					<p class="text-xs font-mono uppercase tracking-widest text-gray-400 dark:text-on-surface-variant mb-2">Monero Subaddress</p>
 					<p class="text-xs font-mono text-gray-700 dark:text-on-surface-variant break-all select-all leading-relaxed">{ tx.Subaddress }</p>
 				</div>
-				if redirectURL != "" {
+				if widget.RedirectURL != "" {
 					<div class="bg-yellow-50 dark:bg-surface-container-high rounded-md p-3 mb-4 flex items-center gap-2">
 						<span class="material-symbols-outlined text-yellow-600 dark:text-yellow-400 text-lg shrink-0">warning</span>
 						<p class="text-xs text-yellow-700 dark:text-yellow-300 font-body">Please don't close this window. You will be redirected automatically once the payment is confirmed.</p>
 					</div>
 				}
-			@Status(tx)
+			@Status(tx, requiredConfirmations, widget.ThankYouMessage)
 			</div>
 		</div>
-		if redirectURL != "" {
+		if widget.RedirectURL != "" {
 			<script>
 				// Warn user before closing during payment
 				window.__tiponeroBeforeUnload = function(e) {

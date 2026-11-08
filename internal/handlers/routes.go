@@ -21,7 +21,7 @@ import (
 
 func NewRouter(db *database.DB, authSvc *auth.Service, wallet *monero.ClientHolder, price *services.PriceService, hostURL string, walletEncKey []byte, requiredConfirmations int, transactionExpiry time.Duration, log zerolog.Logger) *chi.Mux {
 	admin := NewAdminHandler(db, authSvc, wallet, walletEncKey, hostURL, requiredConfirmations, log)
-	widget := NewWidgetHandler(db, wallet, price, hostURL, transactionExpiry, log)
+	widget := NewWidgetHandler(db, wallet, price, hostURL, requiredConfirmations, transactionExpiry, log)
 	api := NewAPIHandler(db, wallet, walletEncKey, log)
 	apiAuth := auth.NewAPIKeyAuthenticator(db)
 

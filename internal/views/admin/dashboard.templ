@@ -14,7 +14,7 @@ templ Dashboard(stats *database.TransactionStats, recentTransactions []database.
 		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
 			@components.StatsCard("Total Received", components.FormatXMR(stats.TotalAmount), fmt.Sprintf("%d transactions all time", stats.TotalTransactions))
 			@components.StatsCard("Today", components.FormatXMR(stats.TodayAmount), fmt.Sprintf("%d transactions today", stats.TodayCount))
-			@components.StatsCard("Pending", fmt.Sprintf("%d", stats.PendingCount), "Awaiting confirmation")
+			@components.StatsCard("Pending", fmt.Sprintf("%d", stats.PendingCount), "Awaiting payment or confirmation")
 			@components.DashboardRPCMini(status)
 		</div>
 		<div class="space-y-6">

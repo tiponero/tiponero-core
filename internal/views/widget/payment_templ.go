@@ -10,12 +10,13 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
+
 	"github.com/tiponero/tiponero-core/internal/database"
 	"github.com/tiponero/tiponero-core/internal/views/components"
 	"github.com/tiponero/tiponero-core/internal/views/layouts"
 )
 
-func Payment(tx *database.Transaction, theme database.WidgetTheme, primaryColor string, redirectURL string) templ.Component {
+func Payment(tx *database.Transaction, widget *database.Widget, requiredConfirmations int) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -60,7 +61,7 @@ func Payment(tx *database.Transaction, theme database.WidgetTheme, primaryColor 
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(components.FormatXMR(tx.Amount))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/widget/payment.templ`, Line: 19, Col: 102}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/widget/payment.templ`, Line: 20, Col: 102}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -83,7 +84,7 @@ func Payment(tx *database.Transaction, theme database.WidgetTheme, primaryColor 
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/widget/qr/%s", tx.ID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/widget/payment.templ`, Line: 28, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/widget/payment.templ`, Line: 29, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 			if templ_7745c5c3_Err != nil {
@@ -96,7 +97,7 @@ func Payment(tx *database.Transaction, theme database.WidgetTheme, primaryColor 
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(tx.Subaddress)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/widget/payment.templ`, Line: 36, Col: 129}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/widget/payment.templ`, Line: 37, Col: 129}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -106,13 +107,13 @@ func Payment(tx *database.Transaction, theme database.WidgetTheme, primaryColor 
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if redirectURL != "" {
+			if widget.RedirectURL != "" {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<div class=\"bg-yellow-50 dark:bg-surface-container-high rounded-md p-3 mb-4 flex items-center gap-2\"><span class=\"material-symbols-outlined text-yellow-600 dark:text-yellow-400 text-lg shrink-0\">warning</span><p class=\"text-xs text-yellow-700 dark:text-yellow-300 font-body\">Please don't close this window. You will be redirected automatically once the payment is confirmed.</p></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = Status(tx).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = Status(tx, requiredConfirmations, widget.ThankYouMessage).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -120,7 +121,7 @@ func Payment(tx *database.Transaction, theme database.WidgetTheme, primaryColor 
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if redirectURL != "" {
+			if widget.RedirectURL != "" {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<script>\n\t\t\t\t// Warn user before closing during payment\n\t\t\t\twindow.__tiponeroBeforeUnload = function(e) {\n\t\t\t\t\te.preventDefault();\n\t\t\t\t\te.returnValue = '';\n\t\t\t\t};\n\t\t\t\twindow.addEventListener('beforeunload', window.__tiponeroBeforeUnload);\n\t\t\t\t// Remove warning when HTMX receives HX-Redirect (payment confirmed)\n\t\t\t\tdocument.body.addEventListener('htmx:beforeOnLoad', function(evt) {\n\t\t\t\t\tif (evt.detail.xhr && evt.detail.xhr.getResponseHeader('HX-Redirect')) {\n\t\t\t\t\t\twindow.removeEventListener('beforeunload', window.__tiponeroBeforeUnload);\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t\t</script>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -128,7 +129,7 @@ func Payment(tx *database.Transaction, theme database.WidgetTheme, primaryColor 
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.WidgetPage("Awaiting Payment", theme, primaryColor).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.WidgetPage("Awaiting Payment", widget.Theme, widget.PrimaryColor).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

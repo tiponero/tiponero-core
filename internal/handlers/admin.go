@@ -219,17 +219,22 @@ func (h *AdminHandler) ExportCSV(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", "attachment; filename=transactions.csv")
 
 	writer := csv.NewWriter(w)
-	_ = writer.Write([]string{"ID", "Type", "Amount (XMR)", "Fiat Amount", "Fiat Currency", "Status", "Donor", "Note", "TX Hash", "Created", "Confirmed"})
+	_ = writer.Write([]string{"ID", "Type", "Amount (XMR)", "Received (XMR)", "Fiat Amount", "Fiat Currency", "Status", "Donor", "Note", "TX Hash", "Created", "Confirmed"})
 
 	for _, t := range transactions {
 		txType := "donation"
 		if t.IsPayment {
 			txType = "payment"
 		}
+		received := t.ReceivedAmount
+		if received == 0 && t.Status == database.StatusConfirmed {
+			received = t.Amount
+		}
 		_ = writer.Write([]string{
 			t.ID,
 			txType,
 			components.FormatXMR(t.Amount),
+			components.FormatXMR(received),
 			fmt.Sprintf("%.2f", t.FiatAmount),
 			t.FiatCurrency,
 			string(t.Status),
@@ -479,10 +484,15 @@ func (h *AdminHandler) CreateWidget(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 
 	mode := parseMode(r.FormValue("mode"))
+	name := strings.TrimSpace(r.FormValue("name"))
+	if name == "" {
+		http.Error(w, "Widget name is required", http.StatusBadRequest)
+		return
+	}
 
 	widget := &database.Widget{
 		UserID:          userID,
-		Name:            r.FormValue("name"),
+		Name:            name,
 		Mode:            mode,
 		ButtonText:      r.FormValue("button_text"),
 		CustomMessage:   r.FormValue("custom_message"),
@@ -490,7 +500,7 @@ func (h *AdminHandler) CreateWidget(w http.ResponseWriter, r *http.Request) {
 		Theme:           parseTheme(r.FormValue("theme")),
 		ShowStats:       r.FormValue("show_stats") == "on",
 		RedirectURL:     strings.TrimSpace(r.FormValue("redirect_url")),
-		ThankYouMessage: "Thank you for your donation!",
+		ThankYouMessage: strings.TrimSpace(r.FormValue("thank_you_message")),
 		CreatedAt:       time.Now().Unix(),
 	}
 	widget.UpdatedAt = widget.CreatedAt
@@ -504,6 +514,13 @@ func (h *AdminHandler) CreateWidget(w http.ResponseWriter, r *http.Request) {
 	}
 	if widget.CustomMessage == "" {
 		widget.CustomMessage = "Your support is appreciated!"
+	}
+	if widget.ThankYouMessage == "" {
+		if mode == database.ModePayment {
+			widget.ThankYouMessage = "Thank you for your payment!"
+		} else {
+			widget.ThankYouMessage = "Thank you for your donation!"
+		}
 	}
 	if widget.PrimaryColor == "" {
 		widget.PrimaryColor = "#ff6600"

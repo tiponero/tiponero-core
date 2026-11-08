@@ -65,7 +65,7 @@ func Dashboard(stats *database.TransactionStats, recentTransactions []database.T
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.StatsCard("Pending", fmt.Sprintf("%d", stats.PendingCount), "Awaiting confirmation").Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.StatsCard("Pending", fmt.Sprintf("%d", stats.PendingCount), "Awaiting payment or confirmation").Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

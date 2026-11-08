@@ -3,6 +3,8 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"strings"
+
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -11,7 +13,7 @@ type DB struct {
 }
 
 func NewDB(path string) (*DB, error) {
-	conn, err := sql.Open("sqlite3", path)
+	conn, err := sql.Open("sqlite3", sqliteDSN(path))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -20,14 +22,14 @@ func NewDB(path string) (*DB, error) {
 		return nil, fmt.Errorf("failed to enable WAL: %w", err)
 	}
 
-	if _, err := conn.Exec("PRAGMA foreign_keys=ON"); err != nil {
-		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
-	}
-
 	db := &DB{conn: conn}
 
 	if err := db.initSchema(); err != nil {
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
+	}
+
+	if err := db.verifySchema(); err != nil {
+		return nil, err
 	}
 
 	return db, nil
@@ -73,6 +75,7 @@ func (db *DB) initSchema() error {
 		subaddress TEXT NOT NULL UNIQUE,
 		subaddress_index INTEGER NOT NULL,
 		amount INTEGER,
+		received_amount INTEGER NOT NULL DEFAULT 0,
 		fiat_amount REAL,
 		fiat_currency TEXT,
 		status TEXT NOT NULL DEFAULT 'pending',
@@ -128,6 +131,46 @@ func (db *DB) initSchema() error {
 
 func (db *DB) Close() error {
 	return db.conn.Close()
+}
+
+// sqliteDSN adds per-connection pragmas to the database path. The SQLite
+// foreign_keys pragma is not persistent, so it must be set on every connection.
+func sqliteDSN(path string) string {
+	if path == "" {
+		return ""
+	}
+	separator := "?"
+	if strings.Contains(path, "?") {
+		separator = "&"
+	}
+	return path + separator + "_foreign_keys=on"
+}
+
+// verifySchema checks for columns that CREATE TABLE IF NOT EXISTS cannot add to
+// an existing database. There is no migration runner: apply the ALTER manually.
+func (db *DB) verifySchema() error {
+	rows, err := db.conn.Query(`PRAGMA table_info("transaction")`)
+	if err != nil {
+		return fmt.Errorf("inspect transaction schema: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var cid, notNull, primaryKey int
+		var name, columnType string
+		var defaultValue sql.NullString
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
+			return fmt.Errorf("scan transaction schema: %w", err)
+		}
+		if name == "received_amount" {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("read transaction schema: %w", err)
+	}
+
+	return fmt.Errorf(`transaction table is missing received_amount; run: ALTER TABLE "transaction" ADD COLUMN received_amount INTEGER NOT NULL DEFAULT 0`)
 }
 
 func nullStr(s string) any {

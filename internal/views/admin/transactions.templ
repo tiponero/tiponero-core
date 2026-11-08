@@ -19,6 +19,7 @@ templ Transactions(transactions []database.Transaction, currentFilter string, pa
 				@filterButton("All", "", currentFilter)
 				@filterButton("Pending", "pending", currentFilter)
 				@filterButton("Confirming", "confirming", currentFilter)
+				@filterButton("Underpaid", "underpaid", currentFilter)
 				@filterButton("Confirmed", "confirmed", currentFilter)
 				@filterButton("Expired", "expired", currentFilter)
 			</div>

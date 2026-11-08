@@ -33,7 +33,11 @@ templ TransactionDetail(tx *database.Transaction, widget *database.Widget, requi
 					}
 					@detailField("Status") {
 						<div class="flex flex-wrap items-center gap-3">
-							if tx.Status == database.StatusExpired {
+							if tx.Status == database.StatusUnderpaid {
+								<span class="inline-flex rounded-md text-xs font-mono uppercase tracking-widest bg-error-container/10 text-error">
+									{ string(tx.Status) }
+								</span>
+							} else if tx.Status == database.StatusExpired {
 								<span class="inline-flex rounded-md text-xs font-mono uppercase tracking-widest bg-monero-gray/30 text-on-surface-variant/60">
 									{ string(tx.Status) }
 								</span>
@@ -93,6 +97,13 @@ templ TransactionDetail(tx *database.Transaction, widget *database.Widget, requi
 							<span class="text-on-surface-variant font-mono">Any amount</span>
 						}
 					}
+					@detailField("Received") {
+						if receivedAmount(tx) > 0 {
+							<span class="font-mono">{ components.FormatXMR(receivedAmount(tx)) }</span>
+						} else {
+							<span class="text-monero-gray">-</span>
+						}
+					}
 				</div>
 			}
 			@components.SectionCard("Details", "info") {
@@ -126,7 +137,7 @@ templ TransactionDetail(tx *database.Transaction, widget *database.Widget, requi
 							<span class="font-mono text-sm">{ fmtTimestamp(tx.ConfirmedAt) }</span>
 						}
 					}
-					if tx.Status == database.StatusPending || tx.Status == database.StatusMempool || tx.Status == database.StatusConfirming {
+					if tx.Status == database.StatusPending || tx.Status == database.StatusMempool || tx.Status == database.StatusConfirming || tx.Status == database.StatusUnderpaid {
 						@detailField("Expires") {
 							<span class="font-mono text-sm">{ fmtTimestamp(tx.ExpiresAt) }</span>
 						}
@@ -164,6 +175,16 @@ func fmtTimestamp(unix int64) string {
 		return "-"
 	}
 	return time.Unix(unix, 0).Format("2006-01-02 15:04:05")
+}
+
+func receivedAmount(tx *database.Transaction) int64 {
+	if tx.ReceivedAmount > 0 {
+		return tx.ReceivedAmount
+	}
+	if tx.Status == database.StatusConfirmed {
+		return tx.Amount
+	}
+	return 0
 }
 
 func isStagenet(subaddress string) bool {

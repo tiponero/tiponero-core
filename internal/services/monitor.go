@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -12,6 +13,12 @@ import (
 const (
 	pollInterval = 30 * time.Second
 )
+
+type transferTotal struct {
+	amount        uint64
+	confirmations uint64
+	txHash        string
+}
 
 type PaymentMonitor struct {
 	db            *database.DB
@@ -84,29 +91,62 @@ func (m *PaymentMonitor) poll() {
 	}
 }
 
-func (m *PaymentMonitor) indexTransfers(result *monero.GetTransfersResult) map[string]monero.Transfer {
-	indexed := make(map[string]monero.Transfer)
+func (m *PaymentMonitor) indexTransfers(result *monero.GetTransfersResult) map[string]transferTotal {
+	type transferKey struct {
+		address string
+		txHash  string
+		minor   uint64
+		amount  uint64
+	}
+
+	unique := make(map[transferKey]monero.Transfer)
 	for _, list := range [][]monero.Transfer{result.In, result.Pending, result.Pool} {
 		for _, t := range list {
-			if existing, ok := indexed[t.Address]; !ok || t.Confirmations > existing.Confirmations {
-				indexed[t.Address] = t
+			key := transferKey{address: t.Address, txHash: t.TxHash, minor: t.SubaddrIndex.Minor, amount: t.Amount}
+			if existing, ok := unique[key]; !ok || t.Confirmations > existing.Confirmations {
+				unique[key] = t
 			}
 		}
+	}
+
+	indexed := make(map[string]transferTotal)
+	for _, t := range unique {
+		total := indexed[t.Address]
+		if total.amount > math.MaxUint64-t.Amount {
+			m.log.Error().Str("address", t.Address).Msg("transfer amount sum overflow")
+			continue
+		}
+		total.amount += t.Amount
+		if t.Confirmations > total.confirmations {
+			total.confirmations = t.Confirmations
+			total.txHash = t.TxHash
+		}
+		indexed[t.Address] = total
 	}
 	return indexed
 }
 
-func (m *PaymentMonitor) updateTransaction(tx database.Transaction, transfer monero.Transfer) {
-	newStatus := m.resolveStatus(transfer.Confirmations)
-	if newStatus == tx.Status && int(transfer.Confirmations) == tx.Confirmations {
+func (m *PaymentMonitor) updateTransaction(tx database.Transaction, transfer transferTotal) {
+	if transfer.amount == 0 {
+		return
+	}
+	if transfer.amount > math.MaxInt64 {
+		m.log.Error().Str("transaction_id", tx.ID).Uint64("amount", transfer.amount).Msg("transfer amount exceeds int64")
+		return
+	}
+
+	newStatus := m.resolveStatus(tx, transfer)
+	received := int64(transfer.amount)
+	if newStatus == tx.Status && int(transfer.confirmations) == tx.Confirmations && received == tx.ReceivedAmount {
 		return
 	}
 
 	err := m.db.UpdateTransactionStatus(
 		tx.ID,
 		newStatus,
-		int(transfer.Confirmations),
-		transfer.TxHash,
+		int(transfer.confirmations),
+		transfer.txHash,
+		received,
 	)
 	if err != nil {
 		m.log.Error().Err(err).Str("transaction_id", tx.ID).Msg("failed to update transaction")
@@ -116,15 +156,20 @@ func (m *PaymentMonitor) updateTransaction(tx database.Transaction, transfer mon
 	m.log.Info().
 		Str("transaction_id", tx.ID).
 		Str("status", string(newStatus)).
-		Uint64("confirmations", transfer.Confirmations).
+		Uint64("confirmations", transfer.confirmations).
+		Uint64("received", transfer.amount).
 		Msg("transaction updated")
 }
 
-func (m *PaymentMonitor) resolveStatus(confirmations uint64) database.TransactionStatus {
+func (m *PaymentMonitor) resolveStatus(tx database.Transaction, transfer transferTotal) database.TransactionStatus {
+	if tx.Amount > 0 && transfer.amount < uint64(tx.Amount) {
+		return database.StatusUnderpaid
+	}
+
 	switch {
-	case confirmations >= uint64(m.confirmations):
+	case transfer.confirmations >= uint64(m.confirmations):
 		return database.StatusConfirmed
-	case confirmations >= 1:
+	case transfer.confirmations >= 1:
 		return database.StatusConfirming
 	default:
 		return database.StatusMempool

@@ -100,6 +100,7 @@ templ Widgets(widgets []database.Widget, hostURL string, rpcStatus monero.Connec
 				  		<input type="hidden" name="preset_amounts" x-ref="preset_amounts_input"/>
 				  		@components.FormField("button_text", "Button Text", "text", "Donate", "", templ.Attributes{})
 				  		@components.FormField("custom_message", "Custom Message", "text", "Your support is appreciated!", "", templ.Attributes{})
+						@components.FormField("thank_you_message", "Thank You Message", "text", "", "Thank you for your donation!", templ.Attributes{})
 				  		<div class="space-y-1.5">
 				  			<label for="redirect_url" class="text-xs font-mono uppercase tracking-widest text-on-surface-variant">Redirect URL (optional)</label>
 				  			<input

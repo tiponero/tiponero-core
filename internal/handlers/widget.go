@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -18,17 +19,23 @@ import (
 	widgetviews "github.com/tiponero/tiponero-core/internal/views/widget"
 )
 
-type WidgetHandler struct {
-	db                *database.DB
-	wallet            *monero.ClientHolder
-	price             *services.PriceService
-	log               zerolog.Logger
-	hostURL           string
-	transactionExpiry time.Duration
+type PriceConverter interface {
+	ConvertXMRToFiat(int64) float64
+	Currency() string
 }
 
-func NewWidgetHandler(db *database.DB, wallet *monero.ClientHolder, price *services.PriceService, hostURL string, transactionExpiry time.Duration, log zerolog.Logger) *WidgetHandler {
-	return &WidgetHandler{db: db, wallet: wallet, price: price, hostURL: hostURL, transactionExpiry: transactionExpiry, log: log.With().Str("component", "widget").Logger()}
+type WidgetHandler struct {
+	db                    *database.DB
+	wallet                *monero.ClientHolder
+	price                 PriceConverter
+	log                   zerolog.Logger
+	hostURL               string
+	requiredConfirmations int
+	transactionExpiry     time.Duration
+}
+
+func NewWidgetHandler(db *database.DB, wallet *monero.ClientHolder, price PriceConverter, hostURL string, requiredConfirmations int, transactionExpiry time.Duration, log zerolog.Logger) *WidgetHandler {
+	return &WidgetHandler{db: db, wallet: wallet, price: price, hostURL: hostURL, requiredConfirmations: requiredConfirmations, transactionExpiry: transactionExpiry, log: log.With().Str("component", "widget").Logger()}
 }
 
 func (h *WidgetHandler) Home(w http.ResponseWriter, r *http.Request) {
@@ -70,9 +77,20 @@ func (h *WidgetHandler) CreateTransaction(w http.ResponseWriter, r *http.Request
 	if rawAmount == "" {
 		rawAmount = r.FormValue("amount")
 	}
-	amountRequested := parseXMRToPiconero(r.FormValue("amount"), r.FormValue("custom_amount"))
-	if rawAmount != "" && amountRequested == 0 {
-		h.log.Warn().Str("raw_amount", rawAmount).Msg("unparseable amount, treating as open donation")
+	amountRequested := int64(0)
+	if widget.Mode == database.ModePayment {
+		preset, ok := widgetPaymentAmount(widget)
+		if !ok {
+			h.log.Error().Str("widget_id", widgetID).Msg("payment widget has no valid preset amount")
+			render(r.Context(), w, widgetviews.Error(widget, "This payment widget is not configured correctly."), h.log)
+			return
+		}
+		amountRequested = preset
+	} else {
+		amountRequested = parseXMRToPiconero(r.FormValue("amount"), r.FormValue("custom_amount"))
+		if rawAmount != "" && amountRequested == 0 {
+			h.log.Warn().Str("raw_amount", rawAmount).Msg("unparseable amount, treating as open donation")
+		}
 	}
 
 	labelBytes := make([]byte, 16)
@@ -119,12 +137,18 @@ func (h *WidgetHandler) CreateTransaction(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	render(r.Context(), w, widgetviews.Payment(tx, widget.Theme, widget.PrimaryColor, widget.RedirectURL), h.log)
+	render(r.Context(), w, widgetviews.Payment(tx, widget, h.requiredConfirmations), h.log)
 }
 
 func (h *WidgetHandler) TransactionStatus(w http.ResponseWriter, r *http.Request) {
 	widgetID := r.PathValue("widgetID")
 	donationID := r.PathValue("donationID")
+
+	widget, err := h.db.GetWidget(widgetID)
+	if err != nil {
+		http.Error(w, "Widget not found", http.StatusNotFound)
+		return
+	}
 
 	tx, err := h.db.GetTransaction(donationID)
 	if err != nil || !tx.WidgetID.Valid || tx.WidgetID.String != widgetID {
@@ -132,15 +156,12 @@ func (h *WidgetHandler) TransactionStatus(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if tx.Status == database.StatusConfirmed {
-		widget, wErr := h.db.GetWidget(widgetID)
-		if wErr == nil && widget.RedirectURL != "" {
-			w.Header().Set("HX-Redirect", widget.RedirectURL)
-		}
+	if tx.Status == database.StatusConfirmed && widget.RedirectURL != "" {
+		w.Header().Set("HX-Redirect", widget.RedirectURL)
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	render(r.Context(), w, widgetviews.Status(tx), h.log)
+	render(r.Context(), w, widgetviews.Status(tx, h.requiredConfirmations, widget.ThankYouMessage), h.log)
 }
 
 func (h *WidgetHandler) QRCode(w http.ResponseWriter, r *http.Request) {
@@ -209,8 +230,28 @@ func parseXMRToPiconero(amount, customAmount string) int64 {
 		raw = amount
 	}
 	xmr, err := strconv.ParseFloat(raw, 64)
-	if err != nil || xmr <= 0 {
+	if err != nil || math.IsNaN(xmr) || math.IsInf(xmr, 0) || xmr <= 0 {
 		return 0
 	}
-	return int64(math.Round(xmr * 1e12))
+	piconero := math.Round(xmr * 1e12)
+	if piconero > float64(math.MaxInt64) {
+		return 0
+	}
+	return int64(piconero)
+}
+
+func widgetPaymentAmount(w *database.Widget) (int64, bool) {
+	var amounts []float64
+	if err := json.Unmarshal([]byte(w.PresetAmounts), &amounts); err != nil || len(amounts) != 1 {
+		return 0, false
+	}
+	xmr := amounts[0]
+	if math.IsNaN(xmr) || math.IsInf(xmr, 0) || xmr <= 0 {
+		return 0, false
+	}
+	piconero := math.Round(xmr * 1e12)
+	if piconero > float64(math.MaxInt64) {
+		return 0, false
+	}
+	return int64(piconero), true
 }

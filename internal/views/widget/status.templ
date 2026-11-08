@@ -1,11 +1,24 @@
 package widget
 
 import (
-	"github.com/tiponero/tiponero-core/internal/database"
 	"fmt"
+
+	"github.com/tiponero/tiponero-core/internal/database"
+	"github.com/tiponero/tiponero-core/internal/views/components"
 )
 
-templ Status(tx *database.Transaction) {
+func confirmationPercent(confirmations, required int) int {
+	if required <= 0 {
+		return 0
+	}
+	percent := confirmations * 100 / required
+	if percent > 100 {
+		return 100
+	}
+	return percent
+}
+
+templ Status(tx *database.Transaction, requiredConfirmations int, thankYouMessage string) {
 	<div
 		id="status"
 		if tx.Status != database.StatusConfirmed && tx.Status != database.StatusExpired {
@@ -35,19 +48,33 @@ templ Status(tx *database.Transaction) {
 					<div class="w-full bg-gray-200 dark:bg-surface-container-high rounded-md h-2 mb-2">
 						<div
 							class="bg-brand-500 h-2 rounded-md transition-all duration-500"
-							style={ fmt.Sprintf("width: %d%%", tx.Confirmations*10) }
+							style={ fmt.Sprintf("width: %d%%", confirmationPercent(tx.Confirmations, requiredConfirmations)) }
 						></div>
 					</div>
-					<p class="text-xs font-mono text-gray-400 dark:text-on-surface-variant uppercase tracking-widest">{ fmt.Sprintf("%d/10 confirmations", tx.Confirmations) }</p>
+					<p class="text-xs font-mono text-gray-400 dark:text-on-surface-variant uppercase tracking-widest">{ fmt.Sprintf("%d/%d confirmations", tx.Confirmations, requiredConfirmations) }</p>
+				</div>
+			case database.StatusUnderpaid:
+				<div class="text-center py-4">
+					<span class="material-symbols-outlined text-red-400 text-3xl mb-2">error_outline</span>
+					<p class="text-sm font-headline font-bold text-gray-900 dark:text-on-surface">Payment amount is too low.</p>
+					<p class="text-xs font-mono text-gray-500 dark:text-on-surface-variant mt-1">
+						{ fmt.Sprintf("Required %s. Received %s.", components.FormatXMR(tx.Amount), components.FormatXMR(tx.ReceivedAmount)) }
+					</p>
+					<p class="text-xs text-gray-500 dark:text-on-surface-variant mt-1 font-body">Send the remaining amount to the same address.</p>
 				</div>
 			case database.StatusConfirmed:
 				<div class="text-center py-4">
 					<span class="material-symbols-outlined text-brand-500 text-5xl mb-3" style="font-variation-settings: 'FILL' 1;">check_circle</span>
 					if tx.IsPayment {
 						<p class="text-lg font-headline font-bold text-gray-900 dark:text-on-surface">Payment confirmed!</p>
-						<p class="text-sm text-gray-500 dark:text-on-surface-variant mt-1 font-body">Your payment has been received.</p>
 					} else {
 						<p class="text-lg font-headline font-bold text-gray-900 dark:text-on-surface">Thank you!</p>
+					}
+					if thankYouMessage != "" {
+						<p class="text-sm text-gray-500 dark:text-on-surface-variant mt-1 font-body">{ thankYouMessage }</p>
+					} else if tx.IsPayment {
+						<p class="text-sm text-gray-500 dark:text-on-surface-variant mt-1 font-body">Your payment has been received.</p>
+					} else {
 						<p class="text-sm text-gray-500 dark:text-on-surface-variant mt-1 font-body">Your donation has been confirmed.</p>
 					}
 				</div>

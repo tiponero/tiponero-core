@@ -20,6 +20,7 @@ const (
 	StatusPending    TransactionStatus = "pending"
 	StatusMempool    TransactionStatus = "mempool"
 	StatusConfirming TransactionStatus = "confirming"
+	StatusUnderpaid  TransactionStatus = "underpaid"
 	StatusConfirmed  TransactionStatus = "confirmed"
 	StatusExpired    TransactionStatus = "expired"
 )
@@ -31,6 +32,7 @@ type Transaction struct {
 	Subaddress      string
 	SubaddressIndex uint64
 	Amount          int64
+	ReceivedAmount  int64
 	FiatAmount      float64
 	FiatCurrency    string
 	Status          TransactionStatus
